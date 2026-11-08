@@ -28,6 +28,12 @@ export const App: React.FC = () => {
   const [errorMsg, setErrorMsg] = useState<string>('');
   const [tapHearts, setTapHearts] = useState<TapHeart[]>([]);
 
+  // "To Real" Chat Parody State
+  const [isChatTyping, setIsChatTyping] = useState<boolean>(false);
+  const [showRealReply, setShowRealReply] = useState<boolean>(false);
+  const [areTicksLime, setAreTicksLime] = useState<boolean>(false);
+  const [replyTimestamp, setReplyTimestamp] = useState<string>('');
+
   // Easter Egg State
   const [isOpenToWorkActive, setIsOpenToWorkActive] = useState<boolean>(false);
   const [tapCount, setTapCount] = useState<number>(0);
@@ -82,7 +88,54 @@ export const App: React.FC = () => {
     return 'TAP THE LOGO 5 TIMES';
   };
 
-  // Typewriter effect for output: runs in ~1 second total
+  // Chat message sequencing in "To Real" mode
+  useEffect(() => {
+    if (!output) {
+      setIsChatTyping(false);
+      setShowRealReply(false);
+      setAreTicksLime(false);
+      return;
+    }
+
+    if (mode === 'to-real') {
+      const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      setReplyTimestamp(nowTime);
+
+      if (prefersReducedMotion) {
+        setIsChatTyping(false);
+        setShowRealReply(true);
+        setAreTicksLime(true);
+        setDisplayedOutput(output);
+        return;
+      }
+
+      // Step 1: show typing for ~1 second
+      setIsChatTyping(true);
+      setShowRealReply(false);
+      setAreTicksLime(false);
+
+      const typingTimer = setTimeout(() => {
+        setIsChatTyping(false);
+        setShowRealReply(true);
+
+        // Haptic when reply lands
+        if (typeof window !== 'undefined' && window.navigator && window.navigator.vibrate) {
+          window.navigator.vibrate(10);
+        }
+
+        // Two ticks turn lime after 1 second
+        const ticksTimer = setTimeout(() => {
+          setAreTicksLime(true);
+        }, 1000);
+
+        return () => clearTimeout(ticksTimer);
+      }, 1000);
+
+      return () => clearTimeout(typingTimer);
+    }
+  }, [output, mode, prefersReducedMotion]);
+
+  // Typewriter effect for output text
   useEffect(() => {
     if (!output) {
       setDisplayedOutput('');
@@ -94,8 +147,8 @@ export const App: React.FC = () => {
     setIsPostExpanded(false);
     setIsLiked(false);
 
-    // Trigger haptic on output arrival
-    if (typeof window !== 'undefined' && window.navigator && window.navigator.vibrate) {
+    // In To LinkedIn mode: trigger haptic immediately
+    if (mode === 'to-linkedin' && typeof window !== 'undefined' && window.navigator && window.navigator.vibrate) {
       window.navigator.vibrate(10);
     }
 
@@ -105,8 +158,14 @@ export const App: React.FC = () => {
       return;
     }
 
+    // In To Real mode, wait until reply bubble is shown
+    if (mode === 'to-real' && !showRealReply) {
+      setDisplayedOutput('');
+      return;
+    }
+
     setDisplayedOutput('');
-    const totalDurationMs = 900;
+    const totalDurationMs = 800;
     const stepTimeMs = 18;
     const totalSteps = Math.floor(totalDurationMs / stepTimeMs);
     const charsPerStep = Math.max(1, Math.ceil(output.length / totalSteps));
@@ -121,7 +180,7 @@ export const App: React.FC = () => {
       }
     }, stepTimeMs);
 
-    // Reaction counter ticker (from 0 to targetReactions)
+    // Reaction counter ticker in To LinkedIn mode
     let currentReactions = 0;
     const reactionStep = Math.ceil(targetReactions / 35);
     const reactionTimer = setInterval(() => {
@@ -136,7 +195,7 @@ export const App: React.FC = () => {
       clearInterval(timer);
       clearInterval(reactionTimer);
     };
-  }, [output, targetReactions, prefersReducedMotion]);
+  }, [output, showRealReply, mode, targetReactions, prefersReducedMotion]);
 
   const handleTranslate = async () => {
     const trimmed = input.trim();
@@ -232,8 +291,6 @@ export const App: React.FC = () => {
   };
 
   const isLinkedInMode = mode === 'to-linkedin';
-
-  // Check if text is long enough to show "...more"
   const isLongPost = (displayedOutput.match(/\n/g) || []).length >= 3 || displayedOutput.length > 180;
 
   return (
@@ -566,13 +623,11 @@ export const App: React.FC = () => {
 
                   {/* Header Row: Avatar, Name + "Verified Humble" Pill, Title, "2h" + Globe Icon */}
                   <div className="flex items-start gap-2.5 pb-2 border-b border-[#EAEAEA] dark:border-[#262626]">
-                    {/* Avatar circle with random initials */}
                     <div className="w-10 h-10 rounded-full bg-[#EBF3FC] dark:bg-[#252525] border border-[#CBDFF5] dark:border-[#383838] text-sm font-display font-bold flex items-center justify-center text-[#1F5FBF] dark:text-[#70A5F5] shrink-0">
                       RS
                     </div>
 
                     <div className="flex flex-col leading-tight min-w-0 flex-1">
-                      {/* Name + Verified Humble Badge */}
                       <div className="flex items-center flex-wrap gap-1.5">
                         <span className="font-sans font-bold text-sm text-[#141414] dark:text-[#F2F0E8]">
                           Rahul Sharma
@@ -583,12 +638,10 @@ export const App: React.FC = () => {
                         </span>
                       </div>
 
-                      {/* Joke Title Line */}
                       <span className="text-[11px] font-sans text-[#666] dark:text-[#8A8A88] truncate mt-0.5">
                         Thought Leader | Storyteller | Dad | Grateful
                       </span>
 
-                      {/* 2h + small globe line icon */}
                       <div className="flex items-center gap-1 text-[10px] font-mono text-[#888] dark:text-[#777] mt-0.5">
                         <span>2h</span>
                         <span>•</span>
@@ -620,7 +673,6 @@ export const App: React.FC = () => {
                       {displayedOutput}
                     </motion.div>
 
-                    {/* "...more" expand trigger */}
                     {!isPostExpanded && isLongPost && (
                       <button
                         type="button"
@@ -635,12 +687,10 @@ export const App: React.FC = () => {
                     )}
                   </div>
 
-                  {/* Reaction Row: 3 overlapping circles + ticker count + 86 comments */}
+                  {/* Reaction Row */}
                   <div className="pt-2 border-t border-[#EAEAEA] dark:border-[#262626] flex items-center justify-between text-[11px] font-mono text-[#666] dark:text-[#8A8A88]">
                     <div className="flex items-center gap-2">
-                      {/* Three overlapping circles in our palette */}
                       <div className="inline-flex items-center -space-x-1.5">
-                        {/* Thumbs up */}
                         <div className="w-4 h-4 rounded-full bg-[#1F5FBF] text-white flex items-center justify-center border border-white dark:border-[#1A1A1A]">
                           <svg
                             className="w-2.5 h-2.5 stroke-white fill-none"
@@ -653,7 +703,6 @@ export const App: React.FC = () => {
                           </svg>
                         </div>
 
-                        {/* Heart */}
                         <div className="w-4 h-4 rounded-full bg-[#E040FB] text-white flex items-center justify-center border border-white dark:border-[#1A1A1A]">
                           <svg
                             className="w-2.5 h-2.5 stroke-white fill-none"
@@ -666,7 +715,6 @@ export const App: React.FC = () => {
                           </svg>
                         </div>
 
-                        {/* Clap */}
                         <div className="w-4 h-4 rounded-full bg-[#C8FF3D] text-black flex items-center justify-center border border-white dark:border-[#1A1A1A]">
                           <svg
                             className="w-2.5 h-2.5 stroke-black fill-none"
@@ -681,7 +729,6 @@ export const App: React.FC = () => {
                         </div>
                       </div>
 
-                      {/* Live ticker count */}
                       <span className="font-bold text-[#141414] dark:text-[#F2F0E8]">
                         {reactionCount.toLocaleString()}
                       </span>
@@ -690,9 +737,8 @@ export const App: React.FC = () => {
                     <span>86 comments</span>
                   </div>
 
-                  {/* Action Row: Like, Comment, Repost, Send (Line Icons) */}
+                  {/* Action Row */}
                   <div className="pt-2 border-t border-[#EAEAEA] dark:border-[#262626] grid grid-cols-4 text-xs font-sans text-[#666] dark:text-[#8A8A88]">
-                    {/* Like button (interactive with scale pop) */}
                     <button
                       type="button"
                       onClick={handleLikeToggle}
@@ -718,7 +764,6 @@ export const App: React.FC = () => {
                       <span>Like</span>
                     </button>
 
-                    {/* Comment (decorative) */}
                     <div className="flex items-center justify-center gap-1.5 py-1 hover:text-[#1F5FBF] transition-colors">
                       <svg
                         className="w-4 h-4 stroke-current fill-none"
@@ -732,7 +777,6 @@ export const App: React.FC = () => {
                       <span>Comment</span>
                     </div>
 
-                    {/* Repost (decorative) */}
                     <div className="flex items-center justify-center gap-1.5 py-1 hover:text-[#1F5FBF] transition-colors">
                       <svg
                         className="w-4 h-4 stroke-current fill-none"
@@ -749,7 +793,6 @@ export const App: React.FC = () => {
                       <span>Repost</span>
                     </div>
 
-                    {/* Send (decorative) */}
                     <div className="flex items-center justify-center gap-1.5 py-1 hover:text-[#1F5FBF] transition-colors">
                       <svg
                         className="w-4 h-4 stroke-current fill-none"
@@ -765,7 +808,7 @@ export const App: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Faint Fake Comment Strip at Bottom (Joke) */}
+                  {/* Faint Fake Comment Strip at Bottom */}
                   <div className="pt-2 border-t border-[#EAEAEA] dark:border-[#262626] flex items-center gap-2 text-[11px] font-sans text-[#888] dark:text-[#777] opacity-75">
                     <div className="w-5 h-5 rounded-full bg-[#DDD] dark:bg-[#333] flex items-center justify-center text-[9px] font-bold text-[#555] dark:text-[#AAA] shrink-0">
                       AP
@@ -776,47 +819,109 @@ export const App: React.FC = () => {
                   </div>
                 </div>
               ) : (
-                /* TO REAL MODE: STICKY NOTE IN ACID LIME */
-                <motion.div
-                  initial={
-                    prefersReducedMotion
-                      ? {}
-                      : { scale: 0.9, rotate: -4 }
-                  }
-                  animate={{ scale: 1, rotate: 1 }}
-                  transition={{ type: 'spring', stiffness: 500, damping: 20 }}
-                  onClick={handleCardTap}
-                  className="w-full bg-[#C8FF3D] text-[#0E0E0E] rounded-xl p-5 border-2 border-black shadow-hard-dark dark:shadow-hard-dark light:shadow-hard-light flex flex-col gap-3 relative cursor-pointer select-none"
-                >
-                  {/* Decorative Tap Hearts on Sticky Note */}
-                  {tapHearts.map((h) => (
+                /* TO REAL MODE: PRIVATE CHAT PARODY CARD */
+                <div className="relative w-full bg-[#181818] dark:bg-[#181818] light:bg-[#F2F2EE] border border-[#2E2E2E] dark:border-[#2E2E2E] light:border-[#D5D5CE] rounded-xl overflow-hidden shadow-soft-card flex flex-col select-none">
+                  {/* Faint Doodle Pattern Background (4% opacity) */}
+                  <div
+                    className="pointer-events-none absolute inset-0 z-0 opacity-[0.04]"
+                    style={{
+                      backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' stroke='%23ffffff' stroke-width='1.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M8 12h10v6H8z'/%3E%3Ccircle cx='40' cy='15' r='5'/%3E%3Cpath d='M12 40l6-6 4 4'/%3E%3Cpath d='M35 42h8v8h-8z'/%3E%3Cpath d='M10 28h5'/%3E%3Cpath d='M45 28l4 4-4 4'/%3E%3C/g%3E%3C/svg%3E")`,
+                      backgroundSize: '48px 48px',
+                    }}
+                    aria-hidden="true"
+                  />
+
+                  {/* Chat Header: Avatar RB, "Rahul Bhai", "online" status */}
+                  <div className="relative z-10 px-4 py-2.5 bg-[#1F1F1F] dark:bg-[#1F1F1F] light:bg-[#EAEAE4] border-b border-[#2C2C2C] dark:border-[#2C2C2C] light:border-[#D0D0CA] flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-full bg-[#2E2E2E] dark:bg-[#2E2E2E] light:bg-[#D5D5CE] border border-[#444] text-xs font-display font-bold flex items-center justify-center text-[#F2F0E8] dark:text-[#F2F0E8] light:text-[#111] shrink-0">
+                      RB
+                    </div>
+
+                    <div className="flex flex-col leading-tight">
+                      <span className="font-sans font-bold text-sm text-[#F2F0E8] dark:text-[#F2F0E8] light:text-[#111]">
+                        Rahul Bhai
+                      </span>
+                      <span className="text-[11px] font-sans text-[#70B5A1] flex items-center gap-1 font-medium">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#C8FF3D] inline-block animate-pulse" />
+                        online
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Chat Message Thread */}
+                  <div className="relative z-10 p-4 flex flex-col gap-3 min-h-[140px]">
+                    {/* Incoming Bubble: User's pasted post, truncated to 2 lines with "..." */}
                     <motion.div
-                      key={h.id}
-                      initial={{ scale: 0, opacity: 1, y: 0 }}
-                      animate={{ scale: 1.8, opacity: 0, y: -24 }}
-                      transition={{ duration: 0.55, ease: 'easeOut' }}
-                      className="absolute pointer-events-none z-30 font-sans text-xl"
-                      style={{ left: h.x, top: h.y }}
+                      initial={{ y: 10, opacity: 0 }}
+                      animate={{ y: 0, opacity: 1 }}
+                      transition={{ type: 'spring', stiffness: 450, damping: 25 }}
+                      className="self-start max-w-[85%] bg-[#282828] dark:bg-[#282828] light:bg-[#E2E2DC] rounded-2xl rounded-tl-sm px-3.5 py-2.5 shadow-xs"
                     >
-                      {h.emoji}
+                      <span className="text-[9px] font-mono text-[#8A8A88] uppercase block mb-0.5 font-bold">
+                        YOU FORWARDED:
+                      </span>
+                      <p className="text-xs font-sans text-[#DDD] dark:text-[#DDD] light:text-[#222] line-clamp-2 leading-relaxed">
+                        "{input}"
+                      </p>
                     </motion.div>
-                  ))}
 
-                  {/* Tape mark at top of sticky note */}
-                  <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 w-16 h-4 bg-white/40 border border-black/20 -rotate-1 pointer-events-none" />
+                    {/* Typing Indicator Bubble: ~1 second */}
+                    <AnimatePresence>
+                      {isChatTyping && (
+                        <motion.div
+                          initial={{ y: 8, opacity: 0 }}
+                          animate={{ y: 0, opacity: 1 }}
+                          exit={{ opacity: 0, scale: 0.9 }}
+                          transition={{ type: 'spring', stiffness: 450, damping: 25 }}
+                          className="self-start bg-[#282828] dark:bg-[#282828] light:bg-[#E2E2DC] rounded-2xl rounded-tl-sm px-3.5 py-2.5 flex items-center gap-1 w-fit shadow-xs"
+                        >
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#888] animate-bounce" />
+                          <span
+                            className="w-1.5 h-1.5 rounded-full bg-[#888] animate-bounce"
+                            style={{ animationDelay: '0.15s' }}
+                          />
+                          <span
+                            className="w-1.5 h-1.5 rounded-full bg-[#888] animate-bounce"
+                            style={{ animationDelay: '0.3s' }}
+                          />
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
 
-                  <div className="text-[10px] font-mono font-extrabold uppercase tracking-wider text-black/60 pt-1">
-                    ASLIYAT // WHAT THEY ACTUALLY MEAN:
+                    {/* Outgoing-style Honest Reply Bubble: Acid lime #C8FF3D with black text */}
+                    {showRealReply && (
+                      <motion.div
+                        initial={{ y: 10, opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        transition={{ type: 'spring', stiffness: 450, damping: 25 }}
+                        className="self-end max-w-[88%] bg-[#C8FF3D] text-[#0E0E0E] rounded-2xl rounded-tr-sm px-3.5 py-2.5 shadow-sm flex flex-col gap-1"
+                      >
+                        {/* Honest text typing in quickly */}
+                        <div className="text-sm font-sans font-semibold leading-relaxed text-black">
+                          {displayedOutput}
+                        </div>
+
+                        {/* Timestamp & Two Ticks (turning from grey to lime/accent) */}
+                        <div className="flex items-center justify-end gap-1 pt-0.5 text-[10px] font-mono text-black/60 self-end">
+                          <span>{replyTimestamp || 'Just now'}</span>
+
+                          {/* Two ticks (double checkmarks) */}
+                          <span
+                            className={`inline-flex items-center text-xs font-bold leading-none transition-colors duration-500 ${
+                              areTicksLime ? 'text-[#057642]' : 'text-neutral-500'
+                            }`}
+                            title={areTicksLime ? 'Read' : 'Delivered'}
+                          >
+                            ✓✓
+                          </span>
+                        </div>
+                      </motion.div>
+                    )}
                   </div>
-
-                  {/* Handwriting text in Caveat font */}
-                  <div className="font-handwriting font-bold text-2xl sm:text-3xl text-black leading-snug py-1">
-                    "{displayedOutput}"
-                  </div>
-                </motion.div>
+                </div>
               )}
 
-              {/* Copy button sits below the card and copies only the post text */}
+              {/* Copy button sits below the card and copies only the text */}
               <div className="w-full flex justify-end pt-1">
                 <button
                   type="button"

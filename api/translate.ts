@@ -5,19 +5,21 @@ export interface TranslateRequestBody {
   mode: 'to-linkedin' | 'to-real';
 }
 
-// In-memory per-IP rate limiter (10 requests per hour)
+// In-memory per-IP rate limiter (10 requests per hour in production)
 const ipRequestTimestamps = new Map<string, number[]>();
 const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
-const MAX_REQUESTS_PER_WINDOW = 10;
 
 function checkRateLimit(ip: string): boolean {
+  const isLocalhost = ip === '127.0.0.1' || ip === '::1' || ip === 'localhost';
+  const maxRequests = isLocalhost ? 60 : 10;
+
   const now = Date.now();
   const timestamps = ipRequestTimestamps.get(ip) || [];
 
   // Filter timestamps within the last 1 hour
   const validTimestamps = timestamps.filter((t) => now - t < RATE_LIMIT_WINDOW_MS);
 
-  if (validTimestamps.length >= MAX_REQUESTS_PER_WINDOW) {
+  if (validTimestamps.length >= maxRequests) {
     ipRequestTimestamps.set(ip, validTimestamps);
     return false; // Rate limit exceeded
   }
