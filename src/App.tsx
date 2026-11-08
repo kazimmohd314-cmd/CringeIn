@@ -576,7 +576,9 @@ export const App: React.FC = () => {
                 />
               </span>
               <span className="normal-case text-xs font-sans font-medium tracking-normal">
-                Rahul is typing a humble post...
+                {isLinkedInMode
+                  ? 'Rahul is typing a humble post...'
+                  : 'Rahul Bhai is cooking a roast...'}
               </span>
             </span>
           ) : isLinkedInMode ? (
