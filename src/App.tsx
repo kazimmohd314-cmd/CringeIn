@@ -26,10 +26,13 @@ export const App: React.FC = () => {
   const [errorMsg, setErrorMsg] = useState<string>('');
   const [tapHearts, setTapHearts] = useState<TapHeart[]>([]);
 
-  // Easter Egg State: OpenToWork 5-tap trigger within 3 seconds
+  // Easter Egg State
   const [isOpenToWorkActive, setIsOpenToWorkActive] = useState<boolean>(false);
+  const [tapCount, setTapCount] = useState<number>(0);
+  const [hasFoundEasterEgg, setHasFoundEasterEgg] = useState<boolean>(false);
   const tapTimestampsRef = useRef<number[]>([]);
-  const easterEggTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const tapResetTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const easterEggDurationTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Check reduced motion preference
   const prefersReducedMotion =
@@ -39,13 +42,27 @@ export const App: React.FC = () => {
   // Handle Easter Egg: 5 taps within 3 seconds
   const handleWordmarkTap = () => {
     const now = Date.now();
-    // Keep only taps within the last 3000ms
+    // Filter out taps older than 3 seconds
     tapTimestampsRef.current = tapTimestampsRef.current.filter((t) => now - t <= 3000);
     tapTimestampsRef.current.push(now);
 
-    if (tapTimestampsRef.current.length >= 5) {
+    const count = tapTimestampsRef.current.length;
+    setTapCount(count);
+
+    // Reset counter if user pauses for longer than 3 seconds
+    if (tapResetTimerRef.current) clearTimeout(tapResetTimerRef.current);
+    tapResetTimerRef.current = setTimeout(() => {
+      tapTimestampsRef.current = [];
+      setTapCount(0);
+    }, 3000);
+
+    // Trigger effect on 5th tap
+    if (count >= 5) {
+      if (tapResetTimerRef.current) clearTimeout(tapResetTimerRef.current);
       tapTimestampsRef.current = [];
       setIsOpenToWorkActive(true);
+      setHasFoundEasterEgg(true);
+      setTapCount(5);
 
       // Trigger specific vibration pattern: [30, 40, 30]
       if (typeof window !== 'undefined' && window.navigator && window.navigator.vibrate) {
@@ -53,11 +70,20 @@ export const App: React.FC = () => {
       }
 
       // Lasts exactly 2 seconds, then smoothly returns to normal
-      if (easterEggTimeoutRef.current) clearTimeout(easterEggTimeoutRef.current);
-      easterEggTimeoutRef.current = setTimeout(() => {
+      if (easterEggDurationTimerRef.current) clearTimeout(easterEggDurationTimerRef.current);
+      easterEggDurationTimerRef.current = setTimeout(() => {
         setIsOpenToWorkActive(false);
+        setTapCount(0);
       }, 2000);
     }
+  };
+
+  // Determine Easter Egg Hint Sticker Text
+  const getHintText = () => {
+    if (isOpenToWorkActive) return '#OPENTOWORK';
+    if (tapCount > 0) return `${tapCount}/5`;
+    if (hasFoundEasterEgg) return 'YOU FOUND IT';
+    return 'TAP THE LOGO 5 TIMES';
   };
 
   // Typewriter effect for output: runs in ~1 second total
@@ -196,7 +222,7 @@ export const App: React.FC = () => {
   const isLinkedInMode = mode === 'to-linkedin';
 
   return (
-    <div className="relative min-h-dvh flex flex-col items-center justify-start overflow-x-hidden transition-colors duration-500">
+    <div className="relative min-h-dvh flex flex-col items-center justify-between overflow-x-hidden transition-colors duration-500">
       {/* 1. Subtle Film Grain Overlay (4% opacity) */}
       <div
         className="pointer-events-none fixed inset-0 z-50 opacity-[0.04] bg-grain"
@@ -231,9 +257,9 @@ export const App: React.FC = () => {
       </AnimatePresence>
 
       {/* Single centered column (mobile first 360px-390px, max 480px on desktop) */}
-      <main className="relative z-10 w-full max-w-[480px] px-4 pt-6 pb-12 flex flex-col gap-4">
+      <main className="relative z-10 w-full max-w-[480px] px-4 pt-6 pb-6 flex flex-col gap-4">
         {/* Top: Header Wordmark */}
-        <header className="flex flex-col gap-1.5 select-none relative">
+        <header className="flex flex-col gap-1 select-none relative">
           {/* Easter Egg #OPENTOWORK Arc / Ribbon Banner */}
           <AnimatePresence>
             {isOpenToWorkActive && (
@@ -249,7 +275,6 @@ export const App: React.FC = () => {
                 className="absolute -top-7 left-0 right-0 flex items-center justify-center pointer-events-none z-30"
               >
                 <div className="relative px-3.5 py-1 bg-[#057642] text-white rounded-full border-2 border-[#70B5A1] shadow-lg flex items-center gap-1.5 overflow-hidden">
-                  {/* Subtle shine on banner */}
                   <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent pointer-events-none" />
                   <span className="w-2 h-2 rounded-full bg-[#70B5A1] animate-ping" />
                   <span className="font-mono text-[11px] font-extrabold uppercase tracking-widest text-[#F2F0E8] leading-none">
@@ -296,7 +321,7 @@ export const App: React.FC = () => {
                   </motion.span>
                 ))}
 
-                {/* The "In" sits in a small blue rounded box, rotated 3 degrees */}
+                {/* The "In" sits in a plain rounded square with text "In", rotated 3 degrees */}
                 <motion.span
                   initial={{ scale: 0, rotate: -15, opacity: 0 }}
                   animate={{ scale: 1, rotate: 3, opacity: 1 }}
@@ -311,6 +336,40 @@ export const App: React.FC = () => {
                   In
                 </motion.span>
               </h1>
+            </motion.div>
+          </div>
+
+          {/* Easter Egg Hint Sticker Pill directly under wordmark */}
+          <div className="flex items-center pt-0.5 pb-1">
+            <motion.div
+              animate={prefersReducedMotion ? {} : { y: [-2, 2, -2] }}
+              transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+              className={`rounded-full px-2.5 py-0.5 inline-flex items-center gap-1.5 border border-dashed transition-all duration-200 select-none ${
+                isOpenToWorkActive
+                  ? 'border-[#70B5A1] bg-[#057642] text-white shadow-sm'
+                  : tapCount > 0
+                  ? 'border-[#C8FF3D] text-[#C8FF3D] bg-[#1E1E1E]'
+                  : 'border-[#444] dark:border-[#444] light:border-[#AAA] text-[#888] dark:text-[#888] light:text-[#777] bg-[#141414]/60 dark:bg-[#141414]/60 light:bg-[#EFEFEA]/60'
+              }`}
+              style={{ transform: 'rotate(-2deg)' }}
+            >
+              {/* Tiny finger-tap line icon */}
+              <svg
+                className="w-3 h-3 stroke-current fill-none shrink-0"
+                viewBox="0 0 24 24"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M8 13V4.5a1.5 1.5 0 0 1 3 0V12" />
+                <path d="M11 11.5a1.5 1.5 0 0 1 3 0V12" />
+                <path d="M14 10.5a1.5 1.5 0 0 1 3 0V12" />
+                <path d="M17 11.5a1.5 1.5 0 0 1 3 0V16a6 6 0 0 1-6 6h-2a6 6 0 0 1-5.66-4L5 13.5a1.5 1.5 0 0 1 2.6-1.5L8 13" />
+              </svg>
+              <span className="font-mono text-[9px] font-bold tracking-wider uppercase leading-none">
+                {getHintText()}
+              </span>
             </motion.div>
           </div>
 
@@ -634,6 +693,13 @@ export const App: React.FC = () => {
           )}
         </AnimatePresence>
       </main>
+
+      {/* Quiet Disclaimer Footer (Not sticky, safe-area aware, 50% opacity) */}
+      <footer className="w-full max-w-[480px] px-4 pt-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] border-t border-[#333]/40 dark:border-[#333]/40 light:border-[#DDD] select-none">
+        <p className="text-[12px] opacity-50 text-center font-sans text-[#8A8A88] dark:text-[#8A8A88] light:text-[#777] leading-relaxed">
+          Just for fun. Not affiliated with LinkedIn. No real posts were harmed.
+        </p>
+      </footer>
     </div>
   );
 };
