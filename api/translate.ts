@@ -319,27 +319,74 @@ FACT RULES:
   };
 }
 
-// Serverless Handler for Vercel / Netlify
-export default async function handler(req: any, res: any) {
-  // Only accept POST
+// Universal Serverless Handler (Vercel req/res & Netlify event/context)
+export async function serverlessHandler(reqOrEvent: any, resOrContext?: any): Promise<any> {
+  // 1. Detect Netlify / AWS Lambda event format:
+  if (reqOrEvent && reqOrEvent.httpMethod && (!resOrContext || typeof resOrContext.status !== 'function')) {
+    const event = reqOrEvent;
+    if (event.httpMethod !== 'POST') {
+      return {
+        statusCode: 405,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'Method Not Allowed' }),
+      };
+    }
+
+    const contentType = event.headers?.['content-type'] || event.headers?.['Content-Type'] || '';
+    if (!contentType.includes('application/json')) {
+      return {
+        statusCode: 400,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'Content-Type must be application/json' }),
+      };
+    }
+
+    const clientIp =
+      event.headers?.['x-forwarded-for']?.split(',')[0]?.trim() ||
+      event.headers?.['client-ip'] ||
+      '127.0.0.1';
+    const originHeader = event.headers?.['origin'] || event.headers?.['referer'];
+    const hostHeader = event.headers?.['host'];
+
+    try {
+      const body = typeof event.body === 'string' ? JSON.parse(event.body) : event.body;
+      const response = await handleTranslation(body, clientIp, originHeader, hostHeader);
+      return {
+        statusCode: response.status,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(response.data),
+      };
+    } catch {
+      return {
+        statusCode: 500,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'Try again' }),
+      };
+    }
+  }
+
+  // 2. Standard Vercel / Express format (req, res):
+  const req = reqOrEvent;
+  const res = resOrContext;
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
   // Validate JSON content-type
-  const contentType = (req.headers['content-type'] as string) || '';
+  const contentType = (req.headers?.['content-type'] as string) || '';
   if (!contentType.includes('application/json')) {
     return res.status(400).json({ error: 'Content-Type must be application/json' });
   }
 
   const clientIp =
-    ((req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim()) ||
-    req.headers['x-real-ip'] ||
+    ((req.headers?.['x-forwarded-for'] as string)?.split(',')[0]?.trim()) ||
+    req.headers?.['x-real-ip'] ||
     req.socket?.remoteAddress ||
     '127.0.0.1';
 
-  const originHeader = (req.headers['origin'] as string) || (req.headers['referer'] as string);
-  const hostHeader = (req.headers['host'] as string) || undefined;
+  const originHeader = (req.headers?.['origin'] as string) || (req.headers?.['referer'] as string);
+  const hostHeader = (req.headers?.['host'] as string) || undefined;
 
   try {
     const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
@@ -350,3 +397,6 @@ export default async function handler(req: any, res: any) {
     return res.status(500).json({ error: 'Try again' });
   }
 }
+
+export default serverlessHandler;
+export const handler = serverlessHandler;
