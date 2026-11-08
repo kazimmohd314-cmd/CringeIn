@@ -1,4 +1,4 @@
-import { generateOfflineLinkedInPost, generateOfflineRealMeaning } from '../src/utils/offlineTranslator';
+import { generateOfflineLinkedInPost, generateOfflineRealMeaning } from './_lib/offlineTranslator.js';
 
 export interface TranslateRequestBody {
   text: string;
