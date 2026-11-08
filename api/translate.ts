@@ -5,6 +5,78 @@ export interface TranslateRequestBody {
   mode: 'to-linkedin' | 'to-real';
 }
 
+// Model lists for LLM providers
+export const GEMINI_MODELS = [
+  'gemini-3.5-flash-lite',
+  'gemini-3.1-flash-lite',
+  'gemini-3.8-flash',
+];
+
+export const GROQ_MODEL_PREFERENCES = [
+  'openai/gpt-oss-120b',
+  'llama-3.1-8b-instant',
+  'llama-3.3-70b-versatile',
+];
+
+let cachedGroqModel: string | null = null;
+let hasLoggedGroqModels = false;
+
+// Resolve Groq model dynamically from available models
+async function getAvailableGroqModel(groqKey: string): Promise<string> {
+  if (cachedGroqModel) return cachedGroqModel;
+
+  try {
+    const res = await fetch('https://api.groq.com/openai/v1/models', {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${groqKey}`,
+      },
+      signal: AbortSignal.timeout(5000),
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      const modelList = Array.isArray(data?.data) ? data.data : [];
+      const modelIds: string[] = modelList.map((m: any) => m.id).filter(Boolean);
+
+      if (process.env.NODE_ENV !== 'production' && !hasLoggedGroqModels) {
+        hasLoggedGroqModels = true;
+        console.log('[DEBUG] Available Groq Model IDs:', modelIds);
+      }
+
+      // Pick first match from preferences
+      for (const pref of GROQ_MODEL_PREFERENCES) {
+        if (modelIds.includes(pref)) {
+          cachedGroqModel = pref;
+          return pref;
+        }
+      }
+
+      // If none match from preference list, select first chat-capable model
+      const chatModel = modelIds.find(
+        (id: string) => !id.includes('whisper') && !id.includes('embed') && !id.includes('tts')
+      ) || modelIds[0];
+
+      if (chatModel) {
+        cachedGroqModel = chatModel;
+        return chatModel;
+      }
+    } else {
+      const errText = await res.text().catch(() => '');
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`[DEBUG] Provider: groq (models fetch) | HTTP Status: ${res.status} | Error: ${errText.slice(0, 150)}`);
+      }
+    }
+  } catch (err: any) {
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`[DEBUG] Provider: groq (models fetch) | HTTP Status: EXCEPTION | Error: ${String(err?.message || err).slice(0, 150)}`);
+    }
+  }
+
+  // Fallback to top preference if list fetch fails
+  return GROQ_MODEL_PREFERENCES[0];
+}
+
 // In-memory fallbacks when Upstash Redis is not configured
 const memoryIpTimestamps = new Map<string, number[]>();
 const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
@@ -255,54 +327,60 @@ Reply: "Team ko credit sirf isliye ki comments aa jaye. 'Agree?' likh ke bheek m
 
   // 5. Primary Model: Google Gemini API (Timeout: 8 seconds, max tokens: 300)
   if (geminiKey) {
-    try {
-      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`;
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        signal: AbortSignal.timeout(8000),
-        body: JSON.stringify({
-          systemInstruction: { parts: [{ text: systemPrompt }] },
-          contents: [{ parts: [{ text }] }],
-          generationConfig: {
-            temperature: 0.8,
-            maxOutputTokens: 300,
-          },
-        }),
-      });
-
-      if (res.ok) {
-        const json = await res.json();
-        if (process.env.NODE_ENV !== 'production') {
-          console.log(`[DEBUG] Provider: gemini | HTTP Status: ${res.status} | OK`);
-        }
-        const candidateText = json?.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (candidateText && candidateText.trim()) {
-          return {
-            status: 200,
-            data: {
-              result: candidateText.trim(),
-              source: 'gemini',
+    for (const model of GEMINI_MODELS) {
+      try {
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`;
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: AbortSignal.timeout(8000),
+          body: JSON.stringify({
+            systemInstruction: { parts: [{ text: systemPrompt }] },
+            contents: [{ parts: [{ text }] }],
+            generationConfig: {
+              temperature: 0.8,
+              maxOutputTokens: 300,
             },
-          };
+          }),
+        });
+
+        if (res.ok) {
+          const json = await res.json();
+          if (process.env.NODE_ENV !== 'production') {
+            console.log(`[DEBUG] Provider: gemini (${model}) | HTTP Status: ${res.status} | OK`);
+          }
+          const candidateText = json?.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (candidateText && candidateText.trim()) {
+            return {
+              status: 200,
+              data: {
+                result: candidateText.trim(),
+                source: 'gemini',
+              },
+            };
+          }
+        } else {
+          const errText = await res.text().catch(() => '');
+          if (process.env.NODE_ENV !== 'production') {
+            console.log(`[DEBUG] Provider: gemini (${model}) | HTTP Status: ${res.status} | Error: ${errText.slice(0, 150)}`);
+          }
+          // Move to the next model on 404 or 429
+          if (res.status === 404 || res.status === 429) {
+            continue;
+          }
         }
-      } else {
-        const errText = await res.text().catch(() => '');
+      } catch (err: any) {
         if (process.env.NODE_ENV !== 'production') {
-          console.log(`[DEBUG] Provider: gemini | HTTP Status: ${res.status} | Error: ${errText.slice(0, 150)}`);
+          console.log(`[DEBUG] Provider: gemini (${model}) | HTTP Status: EXCEPTION | Error: ${String(err?.message || err).slice(0, 150)}`);
         }
       }
-    } catch (err: any) {
-      if (process.env.NODE_ENV !== 'production') {
-        console.log(`[DEBUG] Provider: gemini | HTTP Status: EXCEPTION | Error: ${String(err?.message || err).slice(0, 150)}`);
-      }
-      // Fall through to Groq on error or timeout
     }
   }
 
   // 6. Secondary Model: Groq API (Timeout: 8 seconds, max tokens: 300)
   if (groqKey) {
     try {
+      const selectedModel = await getAvailableGroqModel(groqKey);
       const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -311,7 +389,7 @@ Reply: "Team ko credit sirf isliye ki comments aa jaye. 'Agree?' likh ke bheek m
         },
         signal: AbortSignal.timeout(8000),
         body: JSON.stringify({
-          model: 'llama-3.3-70b-versatile',
+          model: selectedModel,
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: text },
@@ -324,7 +402,7 @@ Reply: "Team ko credit sirf isliye ki comments aa jaye. 'Agree?' likh ke bheek m
       if (res.ok) {
         const json = await res.json();
         if (process.env.NODE_ENV !== 'production') {
-          console.log(`[DEBUG] Provider: groq | HTTP Status: ${res.status} | OK`);
+          console.log(`[DEBUG] Provider: groq (${selectedModel}) | HTTP Status: ${res.status} | OK`);
         }
         const reply = json?.choices?.[0]?.message?.content;
         if (reply && reply.trim()) {
@@ -339,7 +417,7 @@ Reply: "Team ko credit sirf isliye ki comments aa jaye. 'Agree?' likh ke bheek m
       } else {
         const errText = await res.text().catch(() => '');
         if (process.env.NODE_ENV !== 'production') {
-          console.log(`[DEBUG] Provider: groq | HTTP Status: ${res.status} | Error: ${errText.slice(0, 150)}`);
+          console.log(`[DEBUG] Provider: groq (${selectedModel}) | HTTP Status: ${res.status} | Error: ${errText.slice(0, 150)}`);
         }
       }
     } catch (err: any) {
