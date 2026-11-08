@@ -1,0 +1,59 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-[#0E0E0E] text-[#F2F0E8] antialiased;
+    font-family: 'Hanken Grotesk', -apple-system, sans-serif;
+  }
+
+  /* In system light mode */
+  @media (prefers-color-scheme: light) {
+    body {
+      background-color: #FAFAF7;
+      color: #141414;
+    }
+  }
+
+  /* Prevent iOS auto-zoom on input focus */
+  input, textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* Marquee continuous scroll */
+@keyframes marquee-scroll {
+  0% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-marquee {
+  display: flex;
+  width: max-content;
+  animation: marquee-scroll 40s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-marquee {
+    animation-play-state: paused !important;
+  }
+}
+
+/* Hard button physical key press effect */
+.btn-pressable {
+  transition: transform 0.08s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.08s cubic-bezier(0.2, 0, 0, 1);
+}
+.btn-pressable:active:not(:disabled) {
+  transform: translate(4px, 4px) !important;
+  box-shadow: 0px 0px 0px transparent !important;
+}
+
+/* Film grain SVG pattern */
+.bg-grain {
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.05'/%3E%3C/svg%3E");
+}
