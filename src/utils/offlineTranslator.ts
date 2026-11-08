@@ -1,24 +1,24 @@
-// Offline fallback template engine
+// Offline fallback template engine strictly adhering to Fact Rules
 
 const LINKEDIN_OPENERS = [
   "Thrilled to announce a major milestone in my journey.",
-  "Humbled and truly honored to share this with my network.",
+  "Humbled and truly honored to share this update with my network.",
   "Never in my wildest dreams did I imagine I'd be writing this today.",
-  "After countless sleepless nights and endless cups of chai, it's finally here.",
+  "After countless hours and sheer focus, it's finally here.",
 ];
 
 const LINKEDIN_LESSONS = [
-  "What this taught me: Success isn't a straight line. It's an iterative sprint of continuous resilience.",
-  "The biggest lesson? Most people wait for the right moment. The top 1% create it from sheer discipline.",
-  "Key takeaway: When you align vision with relentless execution, the universe responds.",
-  "If there is one truth I've learned, it's this: Your comfort zone is your biggest competitor.",
+  "What this taught me: Progress isn't linear. It's a continuous journey of consistency and resilience.",
+  "The biggest takeaway? Focus on the process, align with your vision, and the results follow.",
+  "Key reflection: When you remain committed to continuous improvement, growth happens naturally.",
+  "A quiet reminder: Never underestimate the compound effect of disciplined daily effort.",
 ];
 
 const LINKEDIN_CLOSERS = [
-  "Curious to hear your thoughts on this.\n\nAgree?",
-  "What has your experience been with this?\n\nAgree?",
-  "Do you agree with this mindset?\n\nAgree?",
-  "Let's normalize taking risks in public.\n\nAgree?",
+  "Curious to hear how you approach this.\n\nAgree?",
+  "What has your experience been with this mindset?\n\nAgree?",
+  "Do you agree with this reflection?\n\nAgree?",
+  "Reflecting on this as we move forward.\n\nAgree?",
 ];
 
 const LINKEDIN_TAGS = [
@@ -36,58 +36,59 @@ export function generateOfflineLinkedInPost(fact: string): string {
   const closer = rand(LINKEDIN_CLOSERS);
   const tags = rand(LINKEDIN_TAGS);
 
+  // Keep every user fact, number, and word intact without adding new facts
   const formattedFact = clean
-    ? `Today, I am proud to formally share:\n\n${clean}.\n\nIt hasn't been an easy road. There were doubters. There were setbacks. But every obstacle was simply disguised data pointing toward the north star.`
-    : `Today marks the culmination of months of focused execution and strategic alignment.`;
+    ? `Today, I am reflecting on:\n\n${clean}.\n\nIt required patience and unwavering dedication to see this through.`
+    : `Today marks an important step forward in focused execution and progress.`;
 
   return `${opener}\n\n${formattedFact}\n\n${lesson}\n\n${closer}\n\n${tags}`;
 }
 
 const REAL_PATTERNS: { match: RegExp; responses: string[] }[] = [
   {
-    match: /excited for a new chapter|new chapter|next adventure|time to reflect|stepping down|leaving my role|taking some time/i,
+    match: /excited for a new chapter|new chapter|next adventure|time to reflect|stepping down|leaving my role|taking some time|transitioning/i,
     responses: [
-      "Naukri se nikaal diya. Ab severance pe araam chal raha hai.",
-      "Layoff ho gaya bhai. HR ne 15 minute ki call pe bye bol diya.",
-      "Job chali gayi hai. Agli milne tak 'freelance consultant' bol rahe hain."
+      "Job chhod di hai ya nikaal diya gaya hai. Ab agla move plan ho raha hai.",
+      "Purani company se nikal chuke hain, ab nayi opportunity dhoondh rahe hain.",
+      "Job chali gayi hai, par post mein usko 'nayi shuruat' bol rahe hain."
     ]
   },
   {
-    match: /thrilled to announce|excited to share|delighted to join|proud to share/i,
+    match: /thrilled to announce|excited to share|delighted to join|proud to share|joined/i,
     responses: [
-      "Nayi job lag gayi hai aur 30% hike bhi mil gaya. Bas flex karna tha.",
-      "Placement ho gaya aakhirkar. Rishtedaaron ko chup karaane ke liye post daali hai.",
-      "Offer letter sign ho gaya, ab 6 mahine chill."
+      "Nayi job lag gayi hai. Bas sabko batane ke liye post daali hai.",
+      "Naya role shuru ho gaya hai, thoda flex toh banta hai.",
+      "Offer accept ho gaya, officially announce kar diya."
     ]
   },
   {
-    match: /humbled and honored|truly humbled|deeply honored|blessed/i,
+    match: /humbled and honored|truly humbled|deeply honored|blessed|grateful/i,
     responses: [
-      "Humble hone ka natak hai, ego asmaan pe hai.",
-      "Bas brag karna tha taaki puraane college waale dost jal sakein.",
-      "Generic sa award mila hai par hero ban ke dikha rahe hain."
+      "Thoda brag karna tha taaki network ko pata chale.",
+      "Apni tareef khud hi humble ban ke kar rahe hain.",
+      "Khushi hui hai par formality ke liye 'humbled' likh diya."
     ]
   },
   {
-    match: /agree\?|thoughts\?|what are your thoughts/i,
+    match: /agree\?|thoughts\?|what are your thoughts|do you agree/i,
     responses: [
-      "Post mein kuch khas nahi tha, bas comments aur engagement chahiye.",
-      "Algorithm ko trick karne ke liye end mein 'Agree?' chipka diya.",
-      "Reach kam ho rahi thi toh generic gyaan pel ke sawal puch liya."
+      "Post pe comments aur engagement badhane ke liye end mein sawal pucha hai.",
+      "Algorithm ko trigger karne ke liye 'Agree?' likha hai.",
+      "Chahte hain log comment karein taaki reach badh sake."
     ]
   },
   {
-    match: /4 am|3:15 am|ice bath|cold plunge|cold shower|grind|hustle/i,
+    match: /cold plunge|cold shower|5 am|4 am|hustle|grind|alpha/i,
     responses: [
-      "Neend kharaab hai aur anxiety peak pe hai. Therapy jaane ke badle post likh di.",
-      "Work-life balance zero hai, usko 'alpha grind' bol ke justify kar rahe hain."
+      "Neend kam aati hai, par usko discipline bol ke post bana diya.",
+      "Aam routine ko extra dramatic bana ke dikha rahe hain."
     ]
   },
   {
     match: /synergy|bandwidth|paradigm|deliverable|stakeholder/i,
     responses: [
-      "Pura din bas Google Meet pe sir hilaya hai, kaam zero hua.",
-      "Bhaari angrezi daali hai taaki manager ko lage kaam chal raha hai."
+      "Bhaari corporate shabd use kiye hain taaki baat serious lage.",
+      "Normal si meeting ko fancy terms mein wrap kar diya."
     ]
   }
 ];
@@ -95,7 +96,7 @@ const REAL_PATTERNS: { match: RegExp; responses: string[] }[] = [
 export function generateOfflineRealMeaning(text: string): string {
   const clean = text.trim();
   if (!clean) {
-    return "Kuch likha hi nahi hai, khali dimag ki tarah.";
+    return "Kuch likha hi nahi hai, khali post hai.";
   }
 
   for (const item of REAL_PATTERNS) {
@@ -106,10 +107,10 @@ export function generateOfflineRealMeaning(text: string): string {
   }
 
   const genericResponses = [
-    "Seedhi baat: Aam si cheez thi, par bhaari angrezi daal ke lagta hai Nobel prize mil gaya.",
-    "Bhai bas relevance bachaane ke liye hawa baazi kar raha hai. Kaam normal tha.",
-    "Translation: 10 minute ka kaam tha, 2 ghante post draft karne mein lagaye.",
-    "Kuch naya nahi hua, bas 'Thought Leader' ka chasma pehan ke bakwaas pel di."
+    "Seedhi baat: Aam si baat thi, par corporate tone daal ke badi bana di.",
+    "Bhai bas apne network mein active rehne ke liye post daal rahe hain.",
+    "Normal update hai, thoda polish karke professional banaya hai.",
+    "Translation: Baat simple hai, bas LinkedIn waali language mein likhi hai."
   ];
 
   return genericResponses[Math.floor(Math.random() * genericResponses.length)];

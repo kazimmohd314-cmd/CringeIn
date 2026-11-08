@@ -18,6 +18,9 @@ let memoryDailyCounter = {
 
 // Check & increment per-IP rate limit (Persistent Upstash Redis or In-memory fallback)
 async function checkIpRateLimit(ip: string): Promise<boolean> {
+  const isLocal = ip === '127.0.0.1' || ip === '::1' || ip.startsWith('127.') || ip === 'localhost';
+  const maxLimit = isLocal && process.env.NODE_ENV !== 'production' ? 100 : MAX_REQUESTS_PER_IP;
+
   const redisUrl = process.env.UPSTASH_REDIS_REST_URL?.trim();
   const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN?.trim();
 
@@ -42,7 +45,7 @@ async function checkIpRateLimit(ip: string): Promise<boolean> {
         const results = await res.json();
         const count = results?.[0]?.result;
         if (typeof count === 'number') {
-          return count <= MAX_REQUESTS_PER_IP;
+          return count <= maxLimit;
         }
       }
     } catch {
@@ -55,7 +58,7 @@ async function checkIpRateLimit(ip: string): Promise<boolean> {
   const timestamps = memoryIpTimestamps.get(ip) || [];
   const validTimestamps = timestamps.filter((t) => now - t < RATE_LIMIT_WINDOW_MS);
 
-  if (validTimestamps.length >= MAX_REQUESTS_PER_IP) {
+  if (validTimestamps.length >= maxLimit) {
     memoryIpTimestamps.set(ip, validTimestamps);
     return false;
   }
@@ -206,8 +209,22 @@ export async function handleTranslation(
 
   const systemPrompt =
     mode === 'to-linkedin'
-      ? `Rewrite the user's sentence as a LinkedIn post. Keep the user's actual fact. Use typical LinkedIn habits: "Thrilled to announce", "humbled", "journey", one-line paragraphs, a fake lesson, "Agree?" at the end, 3 to 5 hashtags. Exaggerated but readable. Output only the post.`
-      : `The user pastes a LinkedIn post. Reply with what the person actually means, in one or two blunt, funny sentences in Hinglish. Not cruel. Output only that.`;
+      ? `Rewrite the user's sentence as a LinkedIn post. Keep the user's actual fact. Use typical LinkedIn habits: "Thrilled to announce", "humbled", "journey", one-line paragraphs, a fake lesson, "Agree?" at the end, 3 to 5 hashtags. Exaggerated but readable.
+
+FACT RULES:
+- Use ONLY the facts in the user's text. Do not add names, numbers, dates, companies, job titles, achievements or results that the user did not write.
+- Keep every number, name, date and place exactly as written.
+- If the user's sentence is vague, keep the post vague. Add style, never facts.
+- To LinkedIn: add only tone, filler phrases, a generic lesson, and hashtags. The lesson must not contain new facts.
+- Output only the final text.`
+      : `The user pastes a LinkedIn post. Reply with what the person actually means, in one or two blunt, funny sentences in Hinglish. Not cruel.
+
+FACT RULES:
+- Use ONLY the facts in the user's text. Do not add names, numbers, dates, companies, job titles, achievements or results that the user did not write.
+- Keep every number, name, date and place exactly as written.
+- If the user's sentence is vague, keep the post vague. Add style, never facts.
+- To Real: explain only what the post actually says or implies. Do not invent a backstory (for example, do not assume layoffs unless the post clearly signals it).
+- Output only the final text.`;
 
   const geminiKey = process.env.GEMINI_API_KEY?.trim();
   const groqKey = process.env.GROQ_API_KEY?.trim();
