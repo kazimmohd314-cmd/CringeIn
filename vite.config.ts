@@ -11,6 +11,14 @@ export default defineConfig({
       configureServer(server) {
         server.middlewares.use('/api/translate', async (req, res) => {
           if (req.method === 'POST') {
+            const contentType = (req.headers['content-type'] as string) || '';
+            if (!contentType.includes('application/json')) {
+              res.setHeader('Content-Type', 'application/json');
+              res.statusCode = 400;
+              res.end(JSON.stringify({ error: 'Content-Type must be application/json' }));
+              return;
+            }
+
             let body = '';
             req.on('data', (chunk) => {
               body += chunk;
@@ -23,14 +31,26 @@ export default defineConfig({
                   req.socket?.remoteAddress ||
                   '127.0.0.1';
 
-                const response = await handleTranslation(parsed, clientIp);
+                const originHeader =
+                  (req.headers['origin'] as string) ||
+                  (req.headers['referer'] as string) ||
+                  undefined;
+                const hostHeader = (req.headers['host'] as string) || undefined;
+
+                const response = await handleTranslation(
+                  parsed,
+                  clientIp,
+                  originHeader,
+                  hostHeader
+                );
+
                 res.setHeader('Content-Type', 'application/json');
                 res.statusCode = response.status;
                 res.end(JSON.stringify(response.data));
-              } catch (err: any) {
+              } catch {
                 res.setHeader('Content-Type', 'application/json');
                 res.statusCode = 500;
-                res.end(JSON.stringify({ error: err?.message || 'Server error' }));
+                res.end(JSON.stringify({ error: 'Try again' }));
               }
             });
           } else {

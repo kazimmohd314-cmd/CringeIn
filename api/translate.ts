@@ -5,57 +5,202 @@ export interface TranslateRequestBody {
   mode: 'to-linkedin' | 'to-real';
 }
 
-// In-memory per-IP rate limiter (10 requests per hour in production)
-const ipRequestTimestamps = new Map<string, number[]>();
+// In-memory fallbacks when Upstash Redis is not configured
+const memoryIpTimestamps = new Map<string, number[]>();
 const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+const MAX_REQUESTS_PER_IP = 10;
+const MAX_GLOBAL_DAILY_CAP = 300;
 
-function checkRateLimit(ip: string): boolean {
-  const isLocalhost = ip === '127.0.0.1' || ip === '::1' || ip === 'localhost';
-  const maxRequests = isLocalhost ? 60 : 10;
+let memoryDailyCounter = {
+  date: new Date().toISOString().slice(0, 10),
+  count: 0,
+};
 
+// Check & increment per-IP rate limit (Persistent Upstash Redis or In-memory fallback)
+async function checkIpRateLimit(ip: string): Promise<boolean> {
+  const redisUrl = process.env.UPSTASH_REDIS_REST_URL?.trim();
+  const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN?.trim();
+
+  if (redisUrl && redisToken) {
+    try {
+      const key = `ratelimit:ip:${ip.replace(/[^a-zA-Z0-9_.-]/g, '_')}`;
+      // Pipeline: INCR + EXPIRE (nx) in a single REST request
+      const res = await fetch(`${redisUrl}/pipeline`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${redisToken}`,
+          'Content-Type': 'application/json',
+        },
+        signal: AbortSignal.timeout(3000),
+        body: JSON.stringify([
+          ['INCR', key],
+          ['EXPIRE', key, 3600, 'NX'],
+        ]),
+      });
+
+      if (res.ok) {
+        const results = await res.json();
+        const count = results?.[0]?.result;
+        if (typeof count === 'number') {
+          return count <= MAX_REQUESTS_PER_IP;
+        }
+      }
+    } catch {
+      // Fall through to memory fallback on network/redis issue
+    }
+  }
+
+  // Memory fallback
   const now = Date.now();
-  const timestamps = ipRequestTimestamps.get(ip) || [];
-
-  // Filter timestamps within the last 1 hour
+  const timestamps = memoryIpTimestamps.get(ip) || [];
   const validTimestamps = timestamps.filter((t) => now - t < RATE_LIMIT_WINDOW_MS);
 
-  if (validTimestamps.length >= maxRequests) {
-    ipRequestTimestamps.set(ip, validTimestamps);
-    return false; // Rate limit exceeded
+  if (validTimestamps.length >= MAX_REQUESTS_PER_IP) {
+    memoryIpTimestamps.set(ip, validTimestamps);
+    return false;
   }
 
   validTimestamps.push(now);
-  ipRequestTimestamps.set(ip, validTimestamps);
+  memoryIpTimestamps.set(ip, validTimestamps);
   return true;
 }
 
+// Check & increment global daily cap (300 requests/day total across all users)
+async function checkGlobalDailyCap(): Promise<boolean> {
+  const today = new Date().toISOString().slice(0, 10);
+  const redisUrl = process.env.UPSTASH_REDIS_REST_URL?.trim();
+  const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN?.trim();
+
+  if (redisUrl && redisToken) {
+    try {
+      const key = `cap:daily:${today}`;
+      const res = await fetch(`${redisUrl}/pipeline`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${redisToken}`,
+          'Content-Type': 'application/json',
+        },
+        signal: AbortSignal.timeout(3000),
+        body: JSON.stringify([
+          ['INCR', key],
+          ['EXPIRE', key, 86400 * 2, 'NX'],
+        ]),
+      });
+
+      if (res.ok) {
+        const results = await res.json();
+        const count = results?.[0]?.result;
+        if (typeof count === 'number') {
+          return count <= MAX_GLOBAL_DAILY_CAP;
+        }
+      }
+    } catch {
+      // Fall through to memory fallback
+    }
+  }
+
+  // Memory fallback
+  if (memoryDailyCounter.date !== today) {
+    memoryDailyCounter = { date: today, count: 0 };
+  }
+
+  memoryDailyCounter.count += 1;
+  return memoryDailyCounter.count <= MAX_GLOBAL_DAILY_CAP;
+}
+
+// Verify origin matches host or is allowed
+function isAllowedOrigin(originHeader?: string, hostHeader?: string): boolean {
+  if (!originHeader) return true; // Direct same-origin or server-to-server
+
+  try {
+    const originUrl = new URL(originHeader);
+    const originHost = originUrl.host;
+
+    // Allow localhost and local IP in development
+    if (
+      originHost.startsWith('localhost') ||
+      originHost.startsWith('127.0.0.1') ||
+      originHost.startsWith('192.168.')
+    ) {
+      return true;
+    }
+
+    if (hostHeader && originHost === hostHeader) {
+      return true;
+    }
+  } catch {
+    return false;
+  }
+
+  return false;
+}
+
 export async function handleTranslation(
-  body: TranslateRequestBody,
-  clientIp: string = '127.0.0.1'
+  body: any,
+  clientIp: string = '127.0.0.1',
+  originHeader?: string,
+  hostHeader?: string
 ): Promise<{
   status: number;
   data: { result?: string; source?: 'gemini' | 'groq' | 'offline'; error?: string };
 }> {
-  // 1. Check rate limit
-  if (!checkRateLimit(clientIp)) {
+  // 1. Origin verification
+  if (!isAllowedOrigin(originHeader, hostHeader)) {
     return {
-      status: 429,
-      data: { error: 'Thoda ruk ke try karo.' }
+      status: 403,
+      data: { error: 'Forbidden' },
     };
   }
 
-  const { text, mode } = body;
-  const cleanText = (text || '').trim();
+  // 2. Input validation
+  const text = typeof body?.text === 'string' ? body.text.trim() : '';
+  const mode = body?.mode === 'to-real' ? 'to-real' : 'to-linkedin';
 
-  if (!cleanText) {
+  if (!text) {
     return {
       status: 200,
       data: {
-        result: mode === 'to-linkedin'
-          ? "Thrilled to announce that I am quietly ideating in absolute focus.\n\nAgree?"
-          : "Khali tha, kuch samajh nahi aaya.",
-        source: 'offline'
-      }
+        result:
+          mode === 'to-linkedin'
+            ? 'Thrilled to announce that I am quietly ideating in absolute focus.\n\nAgree?'
+            : 'Khali tha, kuch samajh nahi aaya.',
+        source: 'offline',
+      },
+    };
+  }
+
+  // Enforce max 1000 characters limit
+  if (text.length > 1000) {
+    return {
+      status: 400,
+      data: { error: 'Input text must be under 1000 characters.' },
+    };
+  }
+
+  // 3. Per-IP rate limiting (10 requests per hour)
+  const isWithinRateLimit = await checkIpRateLimit(clientIp);
+  if (!isWithinRateLimit) {
+    return {
+      status: 429,
+      data: { error: 'Thoda ruk ke try karo.' },
+    };
+  }
+
+  // 4. Global daily cap check (300 requests/day total)
+  const isWithinDailyCap = await checkGlobalDailyCap();
+  if (!isWithinDailyCap) {
+    // If daily LLM budget is exhausted, gracefully use the offline template engine
+    const offlineResult =
+      mode === 'to-linkedin'
+        ? generateOfflineLinkedInPost(text)
+        : generateOfflineRealMeaning(text);
+
+    return {
+      status: 200,
+      data: {
+        result: offlineResult,
+        source: 'offline',
+      },
     };
   }
 
@@ -64,27 +209,25 @@ export async function handleTranslation(
       ? `Rewrite the user's sentence as a LinkedIn post. Keep the user's actual fact. Use typical LinkedIn habits: "Thrilled to announce", "humbled", "journey", one-line paragraphs, a fake lesson, "Agree?" at the end, 3 to 5 hashtags. Exaggerated but readable. Output only the post.`
       : `The user pastes a LinkedIn post. Reply with what the person actually means, in one or two blunt, funny sentences in Hinglish. Not cruel. Output only that.`;
 
-  const userPrompt = cleanText;
-
   const geminiKey = process.env.GEMINI_API_KEY?.trim();
   const groqKey = process.env.GROQ_API_KEY?.trim();
 
-  // 2. Primary: Google Gemini API (free tier)
+  // 5. Primary Model: Google Gemini API (Timeout: 8 seconds, max tokens: 300)
   if (geminiKey) {
     try {
       const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`;
       const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        signal: AbortSignal.timeout(4000),
+        signal: AbortSignal.timeout(8000),
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: systemPrompt }] },
-          contents: [{ parts: [{ text: userPrompt }] }],
+          contents: [{ parts: [{ text }] }],
           generationConfig: {
             temperature: 0.8,
-            maxOutputTokens: 500,
-          }
-        })
+            maxOutputTokens: 300,
+          },
+        }),
       });
 
       if (res.ok) {
@@ -95,35 +238,35 @@ export async function handleTranslation(
             status: 200,
             data: {
               result: candidateText.trim(),
-              source: 'gemini'
-            }
+              source: 'gemini',
+            },
           };
         }
       }
-    } catch (geminiErr) {
-      console.warn("Primary Gemini call failed, attempting fallback:", geminiErr);
+    } catch {
+      // Fall through to Groq on error or timeout
     }
   }
 
-  // 3. Secondary Fallback: Groq API (OpenAI-compatible)
+  // 6. Secondary Model: Groq API (Timeout: 8 seconds, max tokens: 300)
   if (groqKey) {
     try {
       const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${groqKey}`
+          Authorization: `Bearer ${groqKey}`,
         },
-        signal: AbortSignal.timeout(4000),
+        signal: AbortSignal.timeout(8000),
         body: JSON.stringify({
           model: 'llama-3.3-70b-versatile',
           messages: [
             { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt }
+            { role: 'user', content: text },
           ],
           temperature: 0.8,
-          max_tokens: 500
-        })
+          max_tokens: 300,
+        }),
       });
 
       if (res.ok) {
@@ -134,48 +277,59 @@ export async function handleTranslation(
             status: 200,
             data: {
               result: reply.trim(),
-              source: 'groq'
-            }
+              source: 'groq',
+            },
           };
         }
       }
-    } catch (groqErr) {
-      console.warn("Groq fallback failed, falling back to offline engine:", groqErr);
+    } catch {
+      // Fall through to offline template engine
     }
   }
 
-  // 4. Last Resort: Offline Template Engine
+  // 7. Last Resort: Offline Template Engine
   const offlineResult =
     mode === 'to-linkedin'
-      ? generateOfflineLinkedInPost(cleanText)
-      : generateOfflineRealMeaning(cleanText);
+      ? generateOfflineLinkedInPost(text)
+      : generateOfflineRealMeaning(text);
 
   return {
     status: 200,
     data: {
       result: offlineResult,
-      source: 'offline'
-    }
+      source: 'offline',
+    },
   };
 }
 
 // Serverless Handler for Vercel / Netlify
 export default async function handler(req: any, res: any) {
+  // Only accept POST
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
+  // Validate JSON content-type
+  const contentType = (req.headers['content-type'] as string) || '';
+  if (!contentType.includes('application/json')) {
+    return res.status(400).json({ error: 'Content-Type must be application/json' });
+  }
+
   const clientIp =
-    (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
+    ((req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim()) ||
     req.headers['x-real-ip'] ||
     req.socket?.remoteAddress ||
     '127.0.0.1';
 
+  const originHeader = (req.headers['origin'] as string) || (req.headers['referer'] as string);
+  const hostHeader = (req.headers['host'] as string) || undefined;
+
   try {
     const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-    const response = await handleTranslation(body, clientIp);
+    const response = await handleTranslation(body, clientIp, originHeader, hostHeader);
     return res.status(response.status).json(response.data);
-  } catch (err: any) {
-    return res.status(500).json({ error: err.message || 'Internal Server Error' });
+  } catch {
+    // Return generic error message only (no stack traces, no internal details)
+    return res.status(500).json({ error: 'Try again' });
   }
 }
