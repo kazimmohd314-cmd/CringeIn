@@ -48,47 +48,48 @@ const REAL_PATTERNS: { match: RegExp; responses: string[] }[] = [
   {
     match: /excited for a new chapter|new chapter|next adventure|time to reflect|stepping down|leaving my role|taking some time|transitioning/i,
     responses: [
-      "Job chhod di hai ya nikaal diya gaya hai. Ab agla move plan ho raha hai.",
-      "Purani company se nikal chuke hain, ab nayi opportunity dhoondh rahe hain.",
-      "Job chali gayi hai, par post mein usko 'nayi shuruat' bol rahe hain."
+      "Bhai 'new chapter' likhne se dard kam nahi hota, severance ka kya scene hai?",
+      "Corporate ne tata-bye-bye bol diya aur tu usko 'next adventure' bana raha hai.",
+      "Abe seedhe bol na job gayi. 'Time to reflect' toh aise bol raha jaise Vipassana ja raha ho."
     ]
   },
   {
     match: /thrilled to announce|excited to share|delighted to join|proud to share|joined/i,
     responses: [
-      "Nayi job lag gayi hai. Bas sabko batane ke liye post daali hai.",
-      "Naya role shuru ho gaya hai, thoda flex toh banta hai.",
-      "Offer accept ho gaya, officially announce kar diya."
+      "Bhai bol de naukri mili hai, 'journey' kya hota hai. Tu Himalaya nahi ja raha.",
+      "Naya role shuru hote hi essay likh diya? Pehle month ki salary toh aane deta bhai.",
+      "Itna drama offer letter ke liye? Thoda calm down yaar."
     ]
   },
   {
     match: /humbled and honored|truly humbled|deeply honored|blessed|grateful/i,
     responses: [
-      "Thoda brag karna tha taaki network ko pata chale.",
-      "Apni tareef khud hi humble ban ke kar rahe hain.",
-      "Khushi hui hai par formality ke liye 'humbled' likh diya."
+      "2 ghante ka course karke 'humbled'? Certificate ke liye itna drama, abe seekh bhi liya kuch?",
+      "Apni tareef khud hi kar raha hai aur caption mein 'humbled' chipka diya. Waah bhai.",
+      "Bhai humble hone ka natak band kar, seedhe bol flex karna tha."
     ]
   },
   {
     match: /agree\?|thoughts\?|what are your thoughts|do you agree/i,
     responses: [
-      "Post pe comments aur engagement badhane ke liye end mein sawal pucha hai.",
-      "Algorithm ko trigger karne ke liye 'Agree?' likha hai.",
-      "Chahte hain log comment karein taaki reach badh sake."
+      "Team ko credit sirf isliye ki comments aa jaye. 'Agree?' likh ke bheek mang raha hai bhai.",
+      "Algorithm ko butter lagane ke liye aakhri mein 'Agree?' chipka diya, waah.",
+      "Post mein kuch tha nahi, bas engagement ke liye sawal fek ke chala gaya."
     ]
   },
   {
     match: /cold plunge|cold shower|5 am|4 am|hustle|grind|alpha/i,
     responses: [
-      "Neend kam aati hai, par usko discipline bol ke post bana diya.",
-      "Aam routine ko extra dramatic bana ke dikha rahe hain."
+      "Subah 4 baje uth ke LinkedIn pe gyaan pel raha hai, abe neend poori kar le pehle.",
+      "Cold shower lene se Warren Buffett nahi bante bhai, thoda normal behave kar.",
+      "Aam si subah ko superhero origin story bana diya yaar."
     ]
   },
   {
     match: /synergy|bandwidth|paradigm|deliverable|stakeholder/i,
     responses: [
-      "Bhaari corporate shabd use kiye hain taaki baat serious lage.",
-      "Normal si meeting ko fancy terms mein wrap kar diya."
+      "Itni bhaari angrezi? Seedhi baat bol na bhai, manager ko impress karne ka scene hai.",
+      "Pura sentence padh ke bhi kuch samajh nahi aaya. Jargon thoda kam kar yaar."
     ]
   }
 ];
@@ -96,7 +97,7 @@ const REAL_PATTERNS: { match: RegExp; responses: string[] }[] = [
 export function generateOfflineRealMeaning(text: string): string {
   const clean = text.trim();
   if (!clean) {
-    return "Kuch likha hi nahi hai, khali post hai.";
+    return "Abe khali post paste karke kya roast karu? Kuch likha toh ho.";
   }
 
   for (const item of REAL_PATTERNS) {
@@ -107,10 +108,10 @@ export function generateOfflineRealMeaning(text: string): string {
   }
 
   const genericResponses = [
-    "Seedhi baat: Aam si baat thi, par corporate tone daal ke badi bana di.",
-    "Bhai bas apne network mein active rehne ke liye post daal rahe hain.",
-    "Normal update hai, thoda polish karke professional banaya hai.",
-    "Translation: Baat simple hai, bas LinkedIn waali language mein likhi hai."
+    "Aam si baat ko aise frame kiya hai jaise Nobel prize milne waala ho. Thoda calm down bhai.",
+    "Bhai bas relevance bachaane ke liye hawa baazi kar raha hai. Seedhi baat bolo na.",
+    "Bina kisi baat ke 4 paragraph ka gyaan. Itna free time kahan se milta hai yaar?",
+    "Post padh ke lag raha hai bas network ko yaad dilana tha ki zinda ho."
   ];
 
   return genericResponses[Math.floor(Math.random() * genericResponses.length)];
