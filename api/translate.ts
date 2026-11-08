@@ -245,6 +245,14 @@ Reply: "Team ko credit sirf isliye ki comments aa jaye. 'Agree?' likh ke bheek m
   const geminiKey = process.env.GEMINI_API_KEY?.trim();
   const groqKey = process.env.GROQ_API_KEY?.trim();
 
+  // Development-only debug logging (Never log key values, user text, or headers)
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('[DEBUG] API Keys configured:', {
+      GEMINI_API_KEY: Boolean(geminiKey),
+      GROQ_API_KEY: Boolean(groqKey),
+    });
+  }
+
   // 5. Primary Model: Google Gemini API (Timeout: 8 seconds, max tokens: 300)
   if (geminiKey) {
     try {
@@ -265,6 +273,9 @@ Reply: "Team ko credit sirf isliye ki comments aa jaye. 'Agree?' likh ke bheek m
 
       if (res.ok) {
         const json = await res.json();
+        if (process.env.NODE_ENV !== 'production') {
+          console.log(`[DEBUG] Provider: gemini | HTTP Status: ${res.status} | OK`);
+        }
         const candidateText = json?.candidates?.[0]?.content?.parts?.[0]?.text;
         if (candidateText && candidateText.trim()) {
           return {
@@ -275,8 +286,16 @@ Reply: "Team ko credit sirf isliye ki comments aa jaye. 'Agree?' likh ke bheek m
             },
           };
         }
+      } else {
+        const errText = await res.text().catch(() => '');
+        if (process.env.NODE_ENV !== 'production') {
+          console.log(`[DEBUG] Provider: gemini | HTTP Status: ${res.status} | Error: ${errText.slice(0, 150)}`);
+        }
       }
-    } catch {
+    } catch (err: any) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`[DEBUG] Provider: gemini | HTTP Status: EXCEPTION | Error: ${String(err?.message || err).slice(0, 150)}`);
+      }
       // Fall through to Groq on error or timeout
     }
   }
@@ -304,6 +323,9 @@ Reply: "Team ko credit sirf isliye ki comments aa jaye. 'Agree?' likh ke bheek m
 
       if (res.ok) {
         const json = await res.json();
+        if (process.env.NODE_ENV !== 'production') {
+          console.log(`[DEBUG] Provider: groq | HTTP Status: ${res.status} | OK`);
+        }
         const reply = json?.choices?.[0]?.message?.content;
         if (reply && reply.trim()) {
           return {
@@ -314,8 +336,16 @@ Reply: "Team ko credit sirf isliye ki comments aa jaye. 'Agree?' likh ke bheek m
             },
           };
         }
+      } else {
+        const errText = await res.text().catch(() => '');
+        if (process.env.NODE_ENV !== 'production') {
+          console.log(`[DEBUG] Provider: groq | HTTP Status: ${res.status} | Error: ${errText.slice(0, 150)}`);
+        }
       }
-    } catch {
+    } catch (err: any) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`[DEBUG] Provider: groq | HTTP Status: EXCEPTION | Error: ${String(err?.message || err).slice(0, 150)}`);
+      }
       // Fall through to offline template engine
     }
   }
