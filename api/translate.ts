@@ -73,11 +73,6 @@ async function getAvailableGroqModel(groqKey: string): Promise<string> {
       const modelList = Array.isArray(data?.data) ? data.data : [];
       const modelIds: string[] = modelList.map((m: any) => m.id).filter(Boolean);
 
-      if (process.env.NODE_ENV !== 'production' && !hasLoggedGroqModels) {
-        hasLoggedGroqModels = true;
-        console.log('[DEBUG] Available Groq Model IDs:', modelIds);
-      }
-
       // Pick first match from preferences
       for (const pref of GROQ_MODEL_PREFERENCES) {
         if (modelIds.includes(pref)) {
@@ -96,15 +91,10 @@ async function getAvailableGroqModel(groqKey: string): Promise<string> {
         return chatModel;
       }
     } else {
-      const errText = await res.text().catch(() => '');
-      if (process.env.NODE_ENV !== 'production') {
-        console.log(`[DEBUG] Provider: groq (models fetch) | HTTP Status: ${res.status} | Error: ${errText.slice(0, 150)}`);
-      }
+      console.log(`[DEBUG /api/translate] groq models fetch HTTP ${res.status}`);
     }
   } catch (err: any) {
-    if (process.env.NODE_ENV !== 'production') {
-      console.log(`[DEBUG] Provider: groq (models fetch) | HTTP Status: EXCEPTION | Error: ${String(err?.message || err).slice(0, 150)}`);
-    }
+    console.log(`[DEBUG /api/translate] groq models fetch exception`);
   }
 
   // Fallback to top preference if list fetch fails
@@ -244,6 +234,25 @@ function isAllowedOrigin(originHeader?: string, hostHeader?: string): boolean {
   return false;
 }
 
+export interface DebugPayload {
+  providers: Record<string, number | string>;
+  env: {
+    GEMINI_API_KEY: boolean;
+    GROQ_API_KEY: boolean;
+    UPSTASH_REDIS_REST_URL: boolean;
+    UPSTASH_REDIS_REST_TOKEN: boolean;
+  };
+  offline_reason?: 'provider_failed' | 'daily_cap' | 'timeout';
+}
+
+export interface TranslationData {
+  result?: string;
+  source?: 'gemini' | 'groq' | 'offline';
+  type?: string;
+  error?: string;
+  debug?: DebugPayload;
+}
+
 export async function handleTranslation(
   body: any,
   clientIp: string = '127.0.0.1',
@@ -251,7 +260,7 @@ export async function handleTranslation(
   hostHeader?: string
 ): Promise<{
   status: number;
-  data: { result?: string; source?: 'gemini' | 'groq' | 'offline'; type?: string; error?: string };
+  data: TranslationData;
 }> {
   // 1. Origin verification
   if (!isAllowedOrigin(originHeader, hostHeader)) {
@@ -260,6 +269,21 @@ export async function handleTranslation(
       data: { error: 'Forbidden' },
     };
   }
+
+  const geminiKey = process.env.GEMINI_API_KEY?.trim();
+  const groqKey = process.env.GROQ_API_KEY?.trim();
+  const redisUrl = process.env.UPSTASH_REDIS_REST_URL?.trim();
+  const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN?.trim();
+
+  const debugEnv = {
+    GEMINI_API_KEY: Boolean(geminiKey),
+    GROQ_API_KEY: Boolean(groqKey),
+    UPSTASH_REDIS_REST_URL: Boolean(redisUrl),
+    UPSTASH_REDIS_REST_TOKEN: Boolean(redisToken),
+  };
+
+  const providerStatuses: Record<string, number | string> = {};
+  let hadTimeout = false;
 
   // 2. Input validation
   const text = typeof body?.text === 'string' ? body.text.trim() : '';
@@ -282,6 +306,11 @@ export async function handleTranslation(
             : 'Khali tha, kuch samajh nahi aaya.',
         source: 'offline',
         type: mode === 'to-linkedin' ? chosenArchetype.id : undefined,
+        debug: {
+          providers: providerStatuses,
+          env: debugEnv,
+          offline_reason: 'provider_failed',
+        },
       },
     };
   }
@@ -306,11 +335,12 @@ export async function handleTranslation(
   // 4. Global daily cap check (300 requests/day total)
   const isWithinDailyCap = await checkGlobalDailyCap();
   if (!isWithinDailyCap) {
-    // If daily LLM budget is exhausted, gracefully use the offline template engine
     const offlineResult =
       mode === 'to-linkedin'
         ? generateOfflineLinkedInPost(text, chosenArchetype.id)
         : generateOfflineRealMeaning(text);
+
+    console.log('[DEBUG /api/translate]', JSON.stringify({ code: 'ERR_DAILY_CAP', providers: providerStatuses, env: debugEnv, offline_reason: 'daily_cap' }));
 
     return {
       status: 200,
@@ -318,6 +348,11 @@ export async function handleTranslation(
         result: offlineResult,
         source: 'offline',
         type: mode === 'to-linkedin' ? chosenArchetype.id : undefined,
+        debug: {
+          providers: providerStatuses,
+          env: debugEnv,
+          offline_reason: 'daily_cap',
+        },
       },
     };
   }
@@ -369,19 +404,9 @@ Reply: "2 ghante ka course karke 'humbled'? Certificate ke liye itna drama, abe 
 Post: "Grateful for my incredible team. Agree?"
 Reply: "Team ko credit sirf isliye ki comments aa jaye. 'Agree?' likh ke bheek mang raha hai bhai."`;
 
-  const geminiKey = process.env.GEMINI_API_KEY?.trim();
-  const groqKey = process.env.GROQ_API_KEY?.trim();
   const temperature = mode === 'to-linkedin' ? 1.0 : 0.8;
 
-  // Development-only debug logging (Never log key values, user text, or headers)
-  if (process.env.NODE_ENV !== 'production') {
-    console.log('[DEBUG] API Keys configured:', {
-      GEMINI_API_KEY: Boolean(geminiKey),
-      GROQ_API_KEY: Boolean(groqKey),
-    });
-  }
-
-  // 5. Primary Model: Google Gemini API (Timeout: 8 seconds, max tokens: 300)
+  // 5. Primary Model: Google Gemini API (Timeout: 8 seconds, max tokens: 120)
   if (geminiKey) {
     for (const model of GEMINI_MODELS) {
       try {
@@ -400,41 +425,47 @@ Reply: "Team ko credit sirf isliye ki comments aa jaye. 'Agree?' likh ke bheek m
           }),
         });
 
+        providerStatuses.gemini = res.status;
+
         if (res.ok) {
           const json = await res.json();
-          if (process.env.NODE_ENV !== 'production') {
-            console.log(`[DEBUG] Provider: gemini (${model}) | HTTP Status: ${res.status} | OK`);
-          }
           const candidateText = json?.candidates?.[0]?.content?.parts?.[0]?.text;
           if (candidateText && candidateText.trim()) {
+            console.log('[DEBUG /api/translate]', JSON.stringify({ code: 'OK_GEMINI', providers: providerStatuses, env: debugEnv }));
             return {
               status: 200,
               data: {
                 result: candidateText.trim(),
                 source: 'gemini',
                 type: mode === 'to-linkedin' ? chosenArchetype.id : undefined,
+                debug: {
+                  providers: providerStatuses,
+                  env: debugEnv,
+                },
               },
             };
           }
         } else {
-          const errText = await res.text().catch(() => '');
-          if (process.env.NODE_ENV !== 'production') {
-            console.log(`[DEBUG] Provider: gemini (${model}) | HTTP Status: ${res.status} | Error: ${errText.slice(0, 150)}`);
-          }
           // Move to the next model on 404 or 429
           if (res.status === 404 || res.status === 429) {
             continue;
           }
+          break;
         }
       } catch (err: any) {
-        if (process.env.NODE_ENV !== 'production') {
-          console.log(`[DEBUG] Provider: gemini (${model}) | HTTP Status: EXCEPTION | Error: ${String(err?.message || err).slice(0, 150)}`);
+        if (err?.name === 'TimeoutError' || err?.name === 'AbortError' || String(err?.message || '').toLowerCase().includes('timeout')) {
+          providerStatuses.gemini = 'timeout';
+          hadTimeout = true;
+        } else {
+          providerStatuses.gemini = 'exception';
         }
       }
     }
+  } else {
+    providerStatuses.gemini = 'no_key';
   }
 
-  // 6. Secondary Model: Groq API (Timeout: 8 seconds, max tokens: 300)
+  // 6. Secondary Model: Groq API (Timeout: 8 seconds, max tokens: 120)
   if (groqKey) {
     try {
       const selectedModel = await getAvailableGroqModel(groqKey);
@@ -456,37 +487,50 @@ Reply: "Team ko credit sirf isliye ki comments aa jaye. 'Agree?' likh ke bheek m
         }),
       });
 
+      providerStatuses.groq = res.status;
+
       if (res.ok) {
         const json = await res.json();
-        if (process.env.NODE_ENV !== 'production') {
-          console.log(`[DEBUG] Provider: groq (${selectedModel}) | HTTP Status: ${res.status} | OK`);
-        }
         const reply = json?.choices?.[0]?.message?.content;
         if (reply && reply.trim()) {
+          console.log('[DEBUG /api/translate]', JSON.stringify({ code: 'OK_GROQ', providers: providerStatuses, env: debugEnv }));
           return {
             status: 200,
             data: {
               result: reply.trim(),
               source: 'groq',
               type: mode === 'to-linkedin' ? chosenArchetype.id : undefined,
+              debug: {
+                providers: providerStatuses,
+                env: debugEnv,
+              },
             },
           };
         }
-      } else {
-        const errText = await res.text().catch(() => '');
-        if (process.env.NODE_ENV !== 'production') {
-          console.log(`[DEBUG] Provider: groq (${selectedModel}) | HTTP Status: ${res.status} | Error: ${errText.slice(0, 150)}`);
-        }
       }
     } catch (err: any) {
-      if (process.env.NODE_ENV !== 'production') {
-        console.log(`[DEBUG] Provider: groq | HTTP Status: EXCEPTION | Error: ${String(err?.message || err).slice(0, 150)}`);
+      if (err?.name === 'TimeoutError' || err?.name === 'AbortError' || String(err?.message || '').toLowerCase().includes('timeout')) {
+        providerStatuses.groq = 'timeout';
+        hadTimeout = true;
+      } else {
+        providerStatuses.groq = 'exception';
       }
-      // Fall through to offline template engine
     }
+  } else {
+    providerStatuses.groq = 'no_key';
   }
 
   // 7. Last Resort: Offline Template Engine
+  const offlineReason: 'provider_failed' | 'daily_cap' | 'timeout' = hadTimeout ? 'timeout' : 'provider_failed';
+
+  const shortErrorCode = !geminiKey && !groqKey
+    ? 'ERR_NO_KEYS'
+    : hadTimeout
+    ? 'ERR_TIMEOUT'
+    : `ERR_FAILED_${providerStatuses.gemini ?? 'NONE'}_${providerStatuses.groq ?? 'NONE'}`;
+
+  console.log('[DEBUG /api/translate]', JSON.stringify({ code: shortErrorCode, providers: providerStatuses, env: debugEnv, offline_reason: offlineReason }));
+
   const offlineResult =
     mode === 'to-linkedin'
       ? generateOfflineLinkedInPost(text, chosenArchetype.id)
@@ -498,6 +542,11 @@ Reply: "Team ko credit sirf isliye ki comments aa jaye. 'Agree?' likh ke bheek m
       result: offlineResult,
       source: 'offline',
       type: mode === 'to-linkedin' ? chosenArchetype.id : undefined,
+      debug: {
+        providers: providerStatuses,
+        env: debugEnv,
+        offline_reason: offlineReason,
+      },
     },
   };
 }
