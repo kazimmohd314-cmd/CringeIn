@@ -25,11 +25,11 @@ export const LINKEDIN_ARCHETYPES: Archetype[] = [
   { id: 'confession', name: 'Confession', instruction: '"I was afraid to share this..." vulnerable opener' },
 ];
 
-const LENGTHS = ['about 40 words', 'about 90 words', 'about 150 words'];
-const OPENER_STYLES = ['a number', 'a question', 'a bold claim', 'a time marker', 'a quote-like line'];
-const CLOSERS = ['a question', '"Repost if you agree"', '"Follow me for more"', 'none'];
-const HASHTAGS_OPTIONS = ['0 hashtags', '1 to 2 hashtags', '3 to 5 hashtags', 'none'];
-const EMOJI_OPTIONS = ['none', 'one or two', 'rarely many'];
+const LENGTHS = ['under 35 words', 'about 30 to 45 words', 'max 40 words'];
+const OPENER_STYLES = ['a bold claim', 'a dramatic question', 'a punchy time marker', 'a single powerful sentence'];
+const CLOSERS = ['"Agree?"', '"Repost if you agree"', '"Follow for more daily insights"', 'none'];
+const HASHTAGS_OPTIONS = ['1 to 2 hashtags', 'none', '2 punchy hashtags'];
+const EMOJI_OPTIONS = ['none', 'one emoji'];
 
 export function pickArchetype(lastType?: string): Archetype {
   const eligible = lastType
@@ -324,21 +324,26 @@ export async function handleTranslation(
 
   const systemPrompt =
     mode === 'to-linkedin'
-      ? `Rewrite the user's sentence as a satirical, over-the-top corporate LinkedIn parody post.
+      ? `You are an elite LinkedIn meme parody writer.
+Turn the user's normal sentence into a SHORT, PUNCHY, MEME-SIZED LinkedIn parody post.
 
-ARCHETYPE TO USE:
-Archetype ID: ${chosenArchetype.id}
-Archetype Definition: ${chosenArchetype.instruction}
+ARCHETYPE:
+ID: ${chosenArchetype.id}
+Tone: ${chosenArchetype.instruction}
 
-VARIATION PARAMETERS:
-- Target length: ${chosenLength}
-- Opener style: start with ${chosenOpener}
+VARIATION:
+- Target length: STRICTLY SHORT (${chosenLength}, maximum 35 to 45 words).
+- Opener: start with ${chosenOpener}
 - Closer: end with ${chosenCloser}
 - Hashtags: ${chosenHashtags}
 - Emoji: ${chosenEmoji}
 
-SYSTEM PROMPT RULES:
-Write the post in the given archetype, length, opener and closer. Do NOT start with 'Thrilled to announce' unless the archetype is 'announcement'. Keep the user's facts exactly (no new names, numbers, companies or results); add only tone and invented generic lessons. Output only the post.`
+CRITICAL RULES:
+- MEME-SIZED ONLY: Keep the entire post under 40 words total. The reader must get the joke in 5 seconds.
+- NO long essays. NO giant paragraphs. Format with 2 to 4 very short lines separated by blank lines.
+- Do NOT start with 'Thrilled to announce' unless the archetype is 'announcement'.
+- Keep the user's facts exactly (no new names, numbers, companies or results); add only tone and invented generic lessons.
+- Output only the post.`
       : `You are a close Indian friend reading a LinkedIn post over someone's shoulder and roasting the person who wrote it. Reply in casual Hinglish, like a WhatsApp message to a friend.
 
 STYLE:
@@ -390,7 +395,7 @@ Reply: "Team ko credit sirf isliye ki comments aa jaye. 'Agree?' likh ke bheek m
             contents: [{ parts: [{ text }] }],
             generationConfig: {
               temperature,
-              maxOutputTokens: 300,
+              maxOutputTokens: 120,
             },
           }),
         });
@@ -447,7 +452,7 @@ Reply: "Team ko credit sirf isliye ki comments aa jaye. 'Agree?' likh ke bheek m
             { role: 'user', content: text },
           ],
           temperature,
-          max_tokens: 300,
+          max_tokens: 120,
         }),
       });
 

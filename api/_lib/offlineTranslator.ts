@@ -1,35 +1,35 @@
-// Offline fallback template engine strictly adhering to Fact Rules with archetype variety
+// Offline fallback template engine strictly adhering to Fact Rules with archetype variety (punchy, meme-sized)
 
 const ARCHETYPE_TEMPLATES: Record<string, (fact: string) => string> = {
   announcement: (fact) =>
-    `Thrilled to announce a major milestone in my journey.\n\nToday, I am proud to formally share:\n\n${fact}.\n\nIt required patience and unwavering dedication to see this through.\n\nWhat has your experience been with this?\n\nAgree?\n\n#Milestone #CareerJourney #Leadership`,
+    `Thrilled to announce that today:\n\n${fact}.\n\nTruly humbled by this milestone. Huge thanks to everyone who supported this chapter.\n\nAgree?\n\n#Milestone #Humbled`,
 
   lesson: (fact) =>
-    `I was reflecting on a seemingly simple moment today:\n\n${fact}.\n\nHere is the leadership lesson most people miss:\n\n1. Progress is never an accident.\n2. Small daily actions compound into monumental outcomes.\n3. The obstacle is simply data pointing to your north star.\n\nDo you agree with this reflection?\n\n#Leadership #Mindset #ContinuousImprovement`,
+    `Today: ${fact}.\n\nThe leadership takeaway?\n\nStop waiting for the right moment. Execution compounds.\n\nAgree?\n\n#Leadership #Mindset`,
 
   story: (fact) =>
-    `3 years ago, I had zero clarity and endless doubt.\n\nPeople told me to play it safe.\n\nThey told me not to push forward.\n\nToday:\n\n${fact}.\n\nNever let someone else's comfort zone become your ceiling.\n\nRepost if you agree.\n\n#Resilience #Growth #NeverGiveUp`,
+    `3 years ago, they said it was impossible.\n\nToday:\n\n${fact}.\n\nYour doubters are your greatest fuel.\n\nRepost if you agree.`,
 
   hot_take: (fact) =>
-    `Unpopular opinion:\n\n${fact}.\n\nMost corporate professionals will disagree with this.\n\nThey prefer the comfort of conventional playbooks.\n\nBut the top 1% understand that true breakthroughs happen when you challenge the default.\n\nAgree?`,
+    `Unpopular opinion:\n\n${fact}.\n\nMost corporate leaders are afraid to admit this. But the top 1% already know.\n\nAgree?`,
 
   dad_story: (fact) =>
-    `Yesterday, an auto rickshaw driver smiled at me while I was reflecting on how:\n\n${fact}.\n\nHe said: "Sahab, kaam shuru karne mein hi jeet hai."\n\nIt hit me right in the chest.\n\nLeadership isn't taught in executive boardrooms.\n\nIt is taught in daily conversations.\n\nFollow me for more insights.`,
+    `An auto driver looked at me today and said:\n\n"${fact}."\n\nIt shook me. Leadership isn't taught in Harvard, it's lived on the streets.\n\nFollow for more.`,
 
   list: (fact) =>
-    `5 brutal truths I realized from:\n\n${fact}:\n\n1. Execution eats strategy for breakfast.\n2. Consistency is the only real unfair advantage.\n3. Protect your focus at all costs.\n4. Feedback is a gift, even when uncomfortable.\n5. Don't wait for permission to start.\n\nWhich one resonates most with you?`,
+    `3 things ${fact} taught me about leadership:\n\n1. Speed is a moat.\n2. Silence is strategy.\n3. Execution wins.\n\nAgree?`,
 
   broetry: (fact) =>
-    `I did something.\n\n${fact}.\n\nNo shortcuts.\n\nNo excuses.\n\nJust showing up.\n\nEvery.\n\nSingle.\n\nDay.\n\nGrowth.`,
+    `I did something.\n\n${fact}.\n\nNo shortcuts.\n\nNo excuses.\n\nPure grit.\n\nGrowth.`,
 
   before_after: (fact) =>
-    `Day 1: Doubted every single step.\n\nDay 100:\n\n${fact}.\n\nThe only difference? Showing up even when no one was watching.\n\nKeep building.\n\n#Transformation #Discipline #Consistency`,
+    `Day 1: Feared the process.\n\nDay 100: ${fact}.\n\nThe only difference? Showing up.`,
 
   confession: (fact) =>
-    `I was honestly terrified to share this with my network...\n\n${fact}.\n\nWe often hide the daily process behind polished trophies.\n\nToday, I'm choosing to share the raw reality.\n\nVulnerability is not weakness. It is leadership.\n\n#Authenticity #Vulnerability #Leadership`,
+    `I was terrified to post this...\n\n${fact}.\n\nVulnerability is the ultimate B2B superpower.\n\nAgree?`,
 
   thank_you: (fact) =>
-    `A moment of profound gratitude.\n\n${fact}.\n\nNone of this would be possible without my incredible mentors, my team, and the universe aligning this path.\n\nThank you to everyone who believed in this vision.\n\n#Gratitude #Teamwork #Blessed`,
+    `Deeply grateful today:\n\n${fact}.\n\nThank you to my mentors, my network, and the universe.\n\n#Blessed #Gratitude`,
 };
 
 export function generateOfflineLinkedInPost(fact: string, archetypeId?: string): string {
