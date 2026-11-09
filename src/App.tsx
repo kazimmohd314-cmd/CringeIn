@@ -59,7 +59,7 @@ interface TapHeart {
 
 interface FloatingParticle {
   id: number;
-  emoji: string;
+  type: 'thumb' | 'heart' | 'clap';
   dx: number;
   dy: number;
   rotate: number;
@@ -84,6 +84,7 @@ export const App: React.FC = () => {
   const [lastType, setLastType] = useState<string | undefined>(undefined);
   const [isSavingImage, setIsSavingImage] = useState<boolean>(false);
   const [isInputFocused, setIsInputFocused] = useState<boolean>(false);
+  const [hasTappedInput, setHasTappedInput] = useState<boolean>(false);
   const [placeholderText, setPlaceholderText] = useState<string>('');
   const cardRef = useRef<HTMLDivElement>(null);
 
@@ -107,9 +108,9 @@ export const App: React.FC = () => {
     typeof window !== 'undefined' &&
     window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  // Placeholder typewriter loop (40ms/char, 1.5s pause, deletes, next; stops on focus or input)
+  // Placeholder typewriter loop (40ms/char, 1.5s pause, deletes, next; stops immediately when tapped or focused)
   useEffect(() => {
-    if (isInputFocused || input.length > 0 || prefersReducedMotion) {
+    if (hasTappedInput || isInputFocused || input.length > 0 || prefersReducedMotion) {
       setPlaceholderText('');
       return;
     }
@@ -146,7 +147,7 @@ export const App: React.FC = () => {
 
     timeoutId = setTimeout(tick, 400);
     return () => clearTimeout(timeoutId);
-  }, [mode, isInputFocused, input, prefersReducedMotion]);
+  }, [mode, hasTappedInput, isInputFocused, input, prefersReducedMotion]);
 
   // Loading humorous line cycler (cycles through 4 funny lines with a fade)
   useEffect(() => {
@@ -226,29 +227,36 @@ export const App: React.FC = () => {
         return;
       }
 
-      // Step 1: show typing indicator for 1 second
-      setIsChatTyping(true);
+      // Step 1: pasted post appears first as a grey bubble (initial render).
+      // Step 2: after 200ms delay, show "typing..." bubble for 1s.
+      setIsChatTyping(false);
       setShowRealReply(false);
       setAreTicksLime(false);
 
-      const typingTimer = setTimeout(() => {
-        setIsChatTyping(false);
-        setShowRealReply(true);
+      const typingStartTimer = setTimeout(() => {
+        setIsChatTyping(true);
 
-        // Haptic when reply lands
-        if (typeof window !== 'undefined' && window.navigator && window.navigator.vibrate) {
-          window.navigator.vibrate(10);
-        }
+        const replyLandTimer = setTimeout(() => {
+          setIsChatTyping(false);
+          setShowRealReply(true);
 
-        // Two ticks turn lime after 1 second
-        const ticksTimer = setTimeout(() => {
-          setAreTicksLime(true);
+          // Haptic vibrate(10) when reply lands
+          if (typeof window !== 'undefined' && window.navigator && window.navigator.vibrate) {
+            window.navigator.vibrate(10);
+          }
+
+          // Two ticks turn lime after 1 second
+          const ticksTimer = setTimeout(() => {
+            setAreTicksLime(true);
+          }, 1000);
+
+          return () => clearTimeout(ticksTimer);
         }, 1000);
 
-        return () => clearTimeout(ticksTimer);
-      }, 1000);
+        return () => clearTimeout(replyLandTimer);
+      }, 200);
 
-      return () => clearTimeout(typingTimer);
+      return () => clearTimeout(typingStartTimer);
     }
   }, [output, mode, prefersReducedMotion]);
 
@@ -488,14 +496,23 @@ export const App: React.FC = () => {
     }
 
     if (nextLiked && !prefersReducedMotion) {
-      const emojis = ['👍', '❤️', '💡', '👏', '🚀', '🔥', '🎉'];
+      // 6 to 8 tiny reaction icons (simple SVG thumb/heart/clap)
+      const types: ('thumb' | 'heart' | 'clap')[] = [
+        'thumb',
+        'heart',
+        'clap',
+        'thumb',
+        'heart',
+        'clap',
+        'thumb',
+      ];
       const particles: FloatingParticle[] = [];
       const count = 7;
       const now = Date.now();
       for (let i = 0; i < count; i++) {
         particles.push({
           id: now + i,
-          emoji: emojis[i % emojis.length],
+          type: types[i % types.length],
           dx: (Math.random() - 0.5) * 56,
           dy: -45 - Math.random() * 35,
           rotate: (Math.random() - 0.5) * 40,
@@ -621,7 +638,7 @@ export const App: React.FC = () => {
             )}
           </AnimatePresence>
 
-          <div className="flex items-center">
+          <div className="flex items-center relative">
             {/* Wordmark with squish (scaleY: 0.92) and 5-tap Easter Egg listener */}
             <motion.div
               onClick={handleWordmarkTap}
@@ -633,13 +650,37 @@ export const App: React.FC = () => {
                   : { scaleY: 1, scaleX: 1, rotate: 0 }
               }
               transition={{ type: 'spring', stiffness: 500, damping: 15 }}
-              className="inline-block cursor-pointer select-none origin-bottom"
+              className="inline-block cursor-pointer select-none origin-bottom relative"
               style={{
                 touchAction: 'manipulation',
                 WebkitUserSelect: 'none',
                 userSelect: 'none',
               }}
             >
+              {/* Optional animated stroke ribbon around wordmark on Easter egg activation */}
+              {isOpenToWorkActive && (
+                <svg
+                  className="absolute -inset-1.5 w-[calc(100%+12px)] h-[calc(100%+12px)] pointer-events-none z-20"
+                  preserveAspectRatio="none"
+                  viewBox="0 0 100 100"
+                >
+                  <motion.rect
+                    x="2"
+                    y="2"
+                    width="96"
+                    height="96"
+                    rx="12"
+                    fill="none"
+                    stroke="#70B5A1"
+                    strokeWidth="2.5"
+                    strokeDasharray="4 2"
+                    initial={prefersReducedMotion ? { pathLength: 1 } : { pathLength: 0 }}
+                    animate={{ pathLength: 1 }}
+                    transition={{ duration: 0.45, ease: 'easeOut' }}
+                  />
+                </svg>
+              )}
+
               <h1 className="font-display font-extrabold text-[44px] sm:text-[56px] tracking-tighter leading-none text-[#F2F0E8] dark:text-[#F2F0E8] light:text-[#141414] flex items-center">
                 {'Cringe'.split('').map((char, i) => (
                   <motion.span
@@ -820,13 +861,17 @@ export const App: React.FC = () => {
             rows={4}
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onFocus={() => setIsInputFocused(true)}
+            onPointerDown={() => setHasTappedInput(true)}
+            onFocus={() => {
+              setHasTappedInput(true);
+              setIsInputFocused(true);
+            }}
             onBlur={() => setIsInputFocused(false)}
             onKeyDown={handleKeyDown}
             animate={{ scale: isInputFocused ? 1.01 : 1 }}
             transition={{ type: 'spring', stiffness: 450, damping: 25 }}
             placeholder={
-              isInputFocused || input
+              hasTappedInput || isInputFocused || input
                 ? isLinkedInMode
                   ? 'Aaj maine ek app banayi...'
                   : 'Paste a LinkedIn post here...'
@@ -962,7 +1007,7 @@ export const App: React.FC = () => {
                 exit={
                   prefersReducedMotion
                     ? { opacity: 0 }
-                    : { opacity: 0, rotateX: 40, scale: 0.94, transition: { duration: 0.25 } }
+                    : { opacity: 0, rotateX: 50, scale: 0.94, transition: { duration: 0.25 } }
                 }
                 transition={{ type: 'spring', stiffness: 420, damping: 26 }}
                 className="w-full flex flex-col gap-3"
@@ -1143,7 +1188,7 @@ export const App: React.FC = () => {
                       <span>86 comments</span>
                     </div>
 
-                    {/* Action Row: Like button with scale pop & 7 floating reaction particles */}
+                    {/* Action Row: Like button with scale pop & simple SVG (thumb/heart/clap) particles */}
                     <div className="pt-2 border-t border-[#EAEAEA] dark:border-[#262626] grid grid-cols-4 text-xs font-sans text-[#666] dark:text-[#8A8A88]">
                       <div className="relative flex items-center justify-center">
                         {floatingParticles.map((p) => (
@@ -1152,9 +1197,24 @@ export const App: React.FC = () => {
                             initial={{ x: 0, y: 0, scale: 0.5, opacity: 1, rotate: 0 }}
                             animate={{ x: p.dx, y: p.dy, scale: 1.15, opacity: 0, rotate: p.rotate }}
                             transition={{ duration: 0.8, ease: 'easeOut' }}
-                            className="absolute pointer-events-none text-base z-30 select-none"
+                            className="absolute pointer-events-none z-30 select-none flex items-center justify-center p-1 bg-white/90 dark:bg-[#2A2A2A]/90 rounded-full shadow-xs border border-white/20"
                           >
-                            {p.emoji}
+                            {p.type === 'thumb' && (
+                              <svg className="w-3 h-3 fill-[#1F5FBF]" viewBox="0 0 24 24">
+                                <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3" />
+                              </svg>
+                            )}
+                            {p.type === 'heart' && (
+                              <svg className="w-3 h-3 fill-[#E040FB]" viewBox="0 0 24 24">
+                                <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />
+                              </svg>
+                            )}
+                            {p.type === 'clap' && (
+                              <svg className="w-3 h-3 fill-[#C8FF3D] stroke-black stroke-[0.8]" viewBox="0 0 24 24">
+                                <path d="M4 14l5-5 3 3-5 5z" />
+                                <path d="M15 9l5-5-3-3-5 5z" />
+                              </svg>
+                            )}
                           </motion.span>
                         ))}
                         <button

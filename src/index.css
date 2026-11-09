@@ -49,8 +49,8 @@
   transition: transform 0.08s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.08s cubic-bezier(0.2, 0, 0, 1);
 }
 .btn-pressable:active:not(:disabled) {
-  transform: translate(4px, 4px) !important;
-  box-shadow: 0px 0px 0px transparent !important;
+  transform: translate(4px, 4px) scale(0.97);
+  box-shadow: 0px 0px 0px transparent;
 }
 
 /* Film grain SVG pattern */
@@ -74,7 +74,6 @@
 
 .animate-grain {
   animation: grain-shift 1.5s steps(10) infinite;
-  will-change: transform;
 }
 
 /* Idle shadow pulse for Translate button */
@@ -102,9 +101,9 @@
 }
 
 .animate-in-wobble {
+  transform: rotate(3deg);
   animation: in-wobble 4s ease-in-out infinite;
   transform-origin: center center;
-  will-change: transform;
 }
 
 /* Ambient background tint subtle drift (30s loop) */
@@ -122,7 +121,6 @@
 
 .animate-ambient-drift {
   animation: ambient-drift 30s ease-in-out infinite;
-  will-change: transform;
 }
 
 @media (prefers-reduced-motion: reduce) {
