@@ -50,6 +50,21 @@ const REAL_LOADING_LINES = [
   'Removing the fake humility...',
 ];
 
+// Friendly out of office messages when user limit is reached
+const USER_LIMIT_MESSAGES = [
+  "Bas bhai, aaj ka cringe quota khatam. Chai pi lo, thodi der baad aana.",
+  "Humbled to announce that I'm out of office. Back soon.",
+  "Itna cringe ek ghante me? Thoda saans lo, phir aana.",
+  "Server thak gaya. Thodi der me milte hain.",
+];
+
+interface SheetState {
+  isOpen: boolean;
+  title: string;
+  message: string;
+  showCountdown: boolean;
+}
+
 interface TapHeart {
   id: number;
   x: number;
@@ -86,7 +101,45 @@ export const App: React.FC = () => {
   const [isInputFocused, setIsInputFocused] = useState<boolean>(false);
   const [hasTappedInput, setHasTappedInput] = useState<boolean>(false);
   const [placeholderText, setPlaceholderText] = useState<string>('');
+  const [isBasicMode, setIsBasicMode] = useState<boolean>(false);
+  const [retryCountdown, setRetryCountdown] = useState<number>(0);
+  const [sheetState, setSheetState] = useState<SheetState>({
+    isOpen: false,
+    title: 'Out of Office',
+    message: '',
+    showCountdown: false,
+  });
+  const lastLimitMsgIndexRef = useRef<number>(-1);
   const cardRef = useRef<HTMLDivElement>(null);
+
+  // Pick random user limit message avoiding the previous one
+  const getNextUserLimitMessage = () => {
+    const eligible = [0, 1, 2, 3].filter((i) => i !== lastLimitMsgIndexRef.current);
+    const nextIdx = eligible[Math.floor(Math.random() * eligible.length)];
+    lastLimitMsgIndexRef.current = nextIdx;
+    return USER_LIMIT_MESSAGES[nextIdx];
+  };
+
+  // Countdown timer for user limit retry
+  useEffect(() => {
+    if (retryCountdown <= 0) return;
+    const interval = setInterval(() => {
+      setRetryCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [retryCountdown]);
+
+  const formatCountdown = (totalSeconds: number): string => {
+    const mins = Math.floor(totalSeconds / 60);
+    const secs = totalSeconds % 60;
+    return `Wapas aao: ${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  };
 
   // "To Real" Chat Parody State
   const [isChatTyping, setIsChatTyping] = useState<boolean>(false);
@@ -402,8 +455,28 @@ export const App: React.FC = () => {
       const data = await res.json();
 
       if (res.status === 429) {
-        setErrorMsg(data.error || 'Thoda ruk ke try karo.');
+        const retrySec = typeof data?.retryAfterSeconds === 'number' ? data.retryAfterSeconds : 3600;
+        setRetryCountdown(retrySec);
+        setSheetState({
+          isOpen: true,
+          title: 'Out of Office',
+          message: getNextUserLimitMessage(),
+          showCountdown: true,
+        });
         return;
+      }
+
+      if (data.notice === 'daily_cap') {
+        setIsBasicMode(true);
+        if (typeof window !== 'undefined' && !sessionStorage.getItem('cringein_daily_cap_notified')) {
+          sessionStorage.setItem('cringein_daily_cap_notified', 'true');
+          setSheetState({
+            isOpen: true,
+            title: 'Out of Office',
+            message: 'Aaj ka AI quota khatam. Basic mode chal raha hai, kal full cringe milega.',
+            showCountdown: false,
+          });
+        }
       }
 
       if (data.result) {
@@ -413,10 +486,10 @@ export const App: React.FC = () => {
           setLastType(data.type);
         }
       } else if (data.error) {
-        setErrorMsg(data.error);
+        setErrorMsg('Thoda ruk ke try karo.');
       }
     } catch (err) {
-      setErrorMsg('Thoda ruk ke try karo.');
+      setErrorMsg('Server thoda busy hai, thodi der me try karo.');
     } finally {
       setIsLoading(false);
     }
@@ -930,28 +1003,39 @@ export const App: React.FC = () => {
         {/* Primary Action Button: Idle shadow pulse, tap collapse & vibrate, loading morph & funny lines */}
         <motion.button
           type="button"
-          disabled={isLoading}
+          disabled={isLoading || retryCountdown > 0}
           onClick={handleTranslate}
           onPointerDown={() => {
             if (typeof window !== 'undefined' && window.navigator && window.navigator.vibrate) {
               window.navigator.vibrate(10);
             }
           }}
-          whileTap={{
-            x: 4,
-            y: 4,
-            scale: 0.97,
-            boxShadow: '0px 0px 0px transparent',
-          }}
+          whileTap={
+            retryCountdown > 0
+              ? {}
+              : {
+                  x: 4,
+                  y: 4,
+                  scale: 0.97,
+                  boxShadow: '0px 0px 0px transparent',
+                }
+          }
           className={`w-full h-14 rounded-xl text-base font-display font-extrabold uppercase tracking-wide border-2 border-black dark:border-black flex items-center justify-center shadow-hard-dark dark:shadow-hard-dark light:shadow-hard-light btn-pressable ${
-            !hasTranslated && !isLoading ? 'animate-shadow-pulse' : ''
+            !hasTranslated && !isLoading && retryCountdown === 0 ? 'animate-shadow-pulse' : ''
           } ${
-            isLinkedInMode
+            retryCountdown > 0
+              ? 'bg-[#222] dark:bg-[#222] light:bg-[#DDD] text-[#888] cursor-not-allowed opacity-90'
+              : isLinkedInMode
               ? 'bg-[#1F5FBF] text-white hover:brightness-105'
               : 'bg-[#C8FF3D] text-black hover:bg-acidlime-hover'
           } ${isLoading ? 'opacity-90' : ''}`}
         >
-          {isLoading ? (
+          {retryCountdown > 0 ? (
+            <span className="flex items-center gap-2 font-mono text-xs font-bold tracking-wider text-[#C8FF3D] dark:text-[#C8FF3D] light:text-[#057642]">
+              <span className="w-2 h-2 rounded-full bg-current animate-ping" />
+              <span>{formatCountdown(retryCountdown)}</span>
+            </span>
+          ) : isLoading ? (
             <div className="flex flex-col items-center justify-center gap-0.5">
               <div className="flex items-center gap-1.5 py-0.5">
                 <motion.span
@@ -1048,6 +1132,12 @@ export const App: React.FC = () => {
                           <span className="inline-flex items-center text-[10px] font-sans font-semibold text-[#1F5FBF] bg-[#1F5FBF]/10 dark:bg-[#1F5FBF]/20 border border-[#1F5FBF]/30 px-2 py-0.5 rounded-full leading-none">
                             Verified Humble
                           </span>
+
+                          {isBasicMode && (
+                            <span className="inline-flex items-center text-[9px] font-mono uppercase text-[#888] dark:text-[#777] bg-[#222]/30 dark:bg-[#222]/40 light:bg-[#EAEAE4] border border-[#444]/30 px-1.5 py-0.5 rounded leading-none select-none">
+                              basic mode
+                            </span>
+                          )}
                         </div>
 
                         <span className="text-[11px] font-sans text-[#666] dark:text-[#8A8A88] truncate mt-0.5">
@@ -1337,6 +1427,11 @@ export const App: React.FC = () => {
                         <span className="text-[11px] font-sans text-[#70B5A1] flex items-center gap-1 font-medium">
                           <span className="w-1.5 h-1.5 rounded-full bg-[#C8FF3D] inline-block animate-pulse" />
                           online
+                          {isBasicMode && (
+                            <span className="text-[9px] font-mono uppercase text-[#888] dark:text-[#777] bg-[#222]/30 dark:bg-[#222]/40 light:bg-[#EAEAE4] border border-[#444]/30 px-1.5 py-0.5 rounded leading-none select-none ml-1">
+                              basic mode
+                            </span>
+                          )}
                         </span>
                       </div>
                     </div>
@@ -1501,6 +1596,85 @@ export const App: React.FC = () => {
           Just for fun. Not affiliated with LinkedIn. No real posts were harmed.
         </p>
       </footer>
+      {/* Friendly Limit-Reached "Out of Office" Bottom Sheet */}
+      <AnimatePresence>
+        {sheetState.isOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            onClick={() => setSheetState((prev) => ({ ...prev, isOpen: false }))}
+            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/60 backdrop-blur-xs select-none"
+            aria-modal="true"
+            role="dialog"
+          >
+            <motion.div
+              onClick={(e) => e.stopPropagation()}
+              initial={prefersReducedMotion ? { opacity: 0 } : { y: '100%', opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={prefersReducedMotion ? { opacity: 0 } : { y: '100%', opacity: 0 }}
+              transition={{ type: 'spring', stiffness: 420, damping: 28 }}
+              className="relative w-full max-w-[420px] bg-[#181818] dark:bg-[#181818] light:bg-[#FAFAF7] border border-[#2E2E2E] dark:border-[#2E2E2E] light:border-[#D5D5CE] rounded-xl p-5 shadow-hard-dark dark:shadow-hard-dark light:shadow-hard-light flex flex-col gap-3.5 overflow-hidden"
+            >
+              {/* Rubber-stamp style OUT OF OFFICE slap-on badge */}
+              <motion.div
+                initial={prefersReducedMotion ? { opacity: 1 } : { scale: 2.2, opacity: 0, rotate: -15 }}
+                animate={{ scale: 1, opacity: 1, rotate: -4 }}
+                transition={{
+                  type: 'spring',
+                  stiffness: 500,
+                  damping: 20,
+                  delay: prefersReducedMotion ? 0 : 0.15,
+                }}
+                onAnimationComplete={() => {
+                  if (!prefersReducedMotion && typeof window !== 'undefined' && window.navigator && window.navigator.vibrate) {
+                    window.navigator.vibrate(10);
+                  }
+                }}
+                className="absolute top-4 right-4 border-2 border-[#FF5A5A] text-[#FF5A5A] px-2 py-0.5 rounded font-mono text-[10px] font-extrabold uppercase tracking-widest select-none pointer-events-none opacity-90 shadow-xs"
+                style={{ transformOrigin: 'center center' }}
+              >
+                OUT OF OFFICE
+              </motion.div>
+
+              {/* Small Label */}
+              <div className="flex items-center">
+                <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-[#888] dark:text-[#888] light:text-[#777]">
+                  AUTO-REPLY
+                </span>
+              </div>
+
+              {/* Headline & Body */}
+              <div className="flex flex-col gap-1 pr-14">
+                <h3 className="font-display font-extrabold text-xl text-[#F2F0E8] dark:text-[#F2F0E8] light:text-[#141414] leading-tight">
+                  {sheetState.title}
+                </h3>
+                <p className="font-sans text-sm text-[#CCCCCC] dark:text-[#CCCCCC] light:text-[#444] leading-relaxed">
+                  {sheetState.message}
+                </p>
+              </div>
+
+              {/* Live Countdown if user_limit */}
+              {sheetState.showCountdown && retryCountdown > 0 && (
+                <div className="flex items-center gap-2 text-xs font-mono font-bold text-[#C8FF3D] bg-[#222] dark:bg-[#222] light:bg-[#EAEAE4] px-3 py-1.5 rounded-lg border border-[#333] dark:border-[#333] light:border-[#DDD] w-fit">
+                  <span className="w-2 h-2 rounded-full bg-[#C8FF3D] animate-ping" />
+                  <span>{formatCountdown(retryCountdown)}</span>
+                </div>
+              )}
+
+              {/* Action Button: "Theek hai" */}
+              <button
+                type="button"
+                onClick={() => setSheetState((prev) => ({ ...prev, isOpen: false }))}
+                className="w-full h-11 rounded-lg text-sm font-display font-extrabold uppercase tracking-wide bg-[#1F5FBF] text-white hover:brightness-105 active:scale-[0.98] transition-transform shadow-sm flex items-center justify-center cursor-pointer mt-1"
+              >
+                Theek hai
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

@@ -112,8 +112,13 @@ let memoryDailyCounter = {
   count: 0,
 };
 
+interface IpRateLimitResult {
+  allowed: boolean;
+  retryAfterSeconds?: number;
+}
+
 // Check & increment per-IP rate limit (Persistent Upstash Redis or In-memory fallback)
-async function checkIpRateLimit(ip: string): Promise<boolean> {
+async function checkIpRateLimit(ip: string): Promise<IpRateLimitResult> {
   const isLocal = ip === '127.0.0.1' || ip === '::1' || ip.startsWith('127.') || ip === 'localhost';
   const maxLimit = isLocal && process.env.NODE_ENV !== 'production' ? 100 : MAX_REQUESTS_PER_IP;
 
@@ -123,7 +128,7 @@ async function checkIpRateLimit(ip: string): Promise<boolean> {
   if (redisUrl && redisToken) {
     try {
       const key = `ratelimit:ip:${ip.replace(/[^a-zA-Z0-9_.-]/g, '_')}`;
-      // Pipeline: INCR + EXPIRE (nx) in a single REST request
+      // Pipeline: INCR + EXPIRE (nx) + TTL in a single REST request
       const res = await fetch(`${redisUrl}/pipeline`, {
         method: 'POST',
         headers: {
@@ -134,14 +139,20 @@ async function checkIpRateLimit(ip: string): Promise<boolean> {
         body: JSON.stringify([
           ['INCR', key],
           ['EXPIRE', key, 3600, 'NX'],
+          ['TTL', key],
         ]),
       });
 
       if (res.ok) {
         const results = await res.json();
         const count = results?.[0]?.result;
+        const ttl = results?.[2]?.result;
+        const retryAfterSeconds = typeof ttl === 'number' && ttl > 0 ? ttl : 3600;
         if (typeof count === 'number') {
-          return count <= maxLimit;
+          return {
+            allowed: count <= maxLimit,
+            retryAfterSeconds: count > maxLimit ? retryAfterSeconds : undefined,
+          };
         }
       }
     } catch {
@@ -156,12 +167,18 @@ async function checkIpRateLimit(ip: string): Promise<boolean> {
 
   if (validTimestamps.length >= maxLimit) {
     memoryIpTimestamps.set(ip, validTimestamps);
-    return false;
+    const oldest = validTimestamps[0] || now;
+    const expiresAt = oldest + RATE_LIMIT_WINDOW_MS;
+    const retryAfterSeconds = Math.max(1, Math.ceil((expiresAt - now) / 1000));
+    return {
+      allowed: false,
+      retryAfterSeconds,
+    };
   }
 
   validTimestamps.push(now);
   memoryIpTimestamps.set(ip, validTimestamps);
-  return true;
+  return { allowed: true };
 }
 
 // Check & increment global daily cap (300 requests/day total across all users)
@@ -248,8 +265,10 @@ export interface DebugPayload {
 export interface TranslationData {
   result?: string;
   source?: 'gemini' | 'groq' | 'offline';
+  notice?: 'daily_cap';
   type?: string;
   error?: string;
+  retryAfterSeconds?: number;
   debug?: DebugPayload;
 }
 
@@ -324,11 +343,14 @@ export async function handleTranslation(
   }
 
   // 3. Per-IP rate limiting (10 requests per hour)
-  const isWithinRateLimit = await checkIpRateLimit(clientIp);
-  if (!isWithinRateLimit) {
+  const ipRateLimit = await checkIpRateLimit(clientIp);
+  if (!ipRateLimit.allowed) {
     return {
       status: 429,
-      data: { error: 'Thoda ruk ke try karo.' },
+      data: {
+        error: 'user_limit',
+        retryAfterSeconds: ipRateLimit.retryAfterSeconds || 3600,
+      },
     };
   }
 
@@ -347,6 +369,7 @@ export async function handleTranslation(
       data: {
         result: offlineResult,
         source: 'offline',
+        notice: 'daily_cap',
         type: mode === 'to-linkedin' ? chosenArchetype.id : undefined,
         debug: {
           providers: providerStatuses,
