@@ -1,10 +1,24 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { toBlob } from 'html-to-image';
 import { Mode } from './types';
 
 // Marquee text for the scrolling strip
 const MARQUEE_TEXT =
   "THRILLED TO ANNOUNCE ★ HUMBLED & HONORED ★ MY JOURNEY ★ AGREE? ★ GRATEFUL ★ 10X MINDSET ★ SYNERGY ★ ALPHA GRIND ★ DISRUPTING ★ COLD PLUNGE ★ SIMON SINEK QUOTE ★ REACHING OUT ★ THOUGHT LEADER ★ ";
+
+// Example chips for each mode
+const LINKEDIN_EXAMPLES = [
+  'Aaj maine chai pi',
+  'Mera interview kal hai',
+  'Maine gym join kiya',
+];
+
+const REAL_EXAMPLES = [
+  'Excited for a new chapter in my journey!',
+  'Humbled and honored to receive this award.',
+  'What 4 AM wakeups and cold showers taught me about leadership.',
+];
 
 interface TapHeart {
   id: number;
@@ -27,6 +41,10 @@ export const App: React.FC = () => {
   const [isLiked, setIsLiked] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string>('');
   const [tapHearts, setTapHearts] = useState<TapHeart[]>([]);
+  const [hasTranslated, setHasTranslated] = useState<boolean>(false);
+  const [lastType, setLastType] = useState<string | undefined>(undefined);
+  const [isSavingImage, setIsSavingImage] = useState<boolean>(false);
+  const cardRef = useRef<HTMLDivElement>(null);
 
   // "To Real" Chat Parody State
   const [isChatTyping, setIsChatTyping] = useState<boolean>(false);
@@ -225,7 +243,11 @@ export const App: React.FC = () => {
       const res = await fetch('/api/translate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: trimmed, mode }),
+        body: JSON.stringify({
+          text: trimmed,
+          mode,
+          lastType: mode === 'to-linkedin' ? lastType : undefined,
+        }),
       });
 
       const data = await res.json();
@@ -237,6 +259,10 @@ export const App: React.FC = () => {
 
       if (data.result) {
         setOutput(data.result);
+        setHasTranslated(true);
+        if (data.type) {
+          setLastType(data.type);
+        }
       } else if (data.error) {
         setErrorMsg(data.error);
       }
@@ -244,6 +270,56 @@ export const App: React.FC = () => {
       setErrorMsg('Thoda ruk ke try karo.');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleSaveImage = async () => {
+    if (!cardRef.current || isSavingImage) return;
+    setIsSavingImage(true);
+
+    try {
+      const blob = await toBlob(cardRef.current, {
+        pixelRatio: 2,
+        cacheBust: true,
+      });
+      if (!blob) throw new Error('Could not generate image blob');
+
+      const fileName = `cringein-${mode}-${Date.now()}.png`;
+      const file = new File([blob], fileName, { type: 'image/png' });
+
+      // Try Web Share API if supported on mobile
+      if (
+        typeof navigator !== 'undefined' &&
+        navigator.canShare &&
+        navigator.canShare({ files: [file] })
+      ) {
+        try {
+          await navigator.share({
+            files: [file],
+            title: 'CringeIn',
+            text: 'Generated with CringeIn (@cringein.official)',
+          });
+          return;
+        } catch (shareErr: any) {
+          if (shareErr?.name === 'AbortError') {
+            return;
+          }
+        }
+      }
+
+      // Download fallback
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Failed to export image:', err);
+    } finally {
+      setIsSavingImage(false);
     }
   };
 
@@ -523,7 +599,7 @@ export const App: React.FC = () => {
         </div>
 
         {/* Middle: Text Input */}
-        <div className="w-full relative">
+        <div className="w-full relative flex flex-col gap-2">
           <textarea
             rows={4}
             value={input}
@@ -536,6 +612,28 @@ export const App: React.FC = () => {
             }
             className="w-full bg-[#161616] dark:bg-[#161616] light:bg-white border-2 border-[#2C2C2C] dark:border-[#2C2C2C] light:border-[#D8D8D2] rounded-xl p-3.5 text-base text-[#F2F0E8] dark:text-[#F2F0E8] light:text-[#111] placeholder:text-[#666] focus:outline-none focus:border-[#1F5FBF] dark:focus:border-[#1F5FBF] resize-none leading-relaxed transition-colors shadow-soft-card"
           />
+
+          {/* Example Chips (disappear after the first translation) */}
+          {!hasTranslated && !output && (
+            <motion.div
+              initial={{ opacity: 0, y: -2 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="flex flex-wrap items-center gap-1.5 pt-0.5 select-none"
+            >
+              {(isLinkedInMode ? LINKEDIN_EXAMPLES : REAL_EXAMPLES).map((chip, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => setInput(chip)}
+                  className="text-[11px] font-sans px-2.5 py-1 rounded-full bg-[#1A1A1A] dark:bg-[#1A1A1A] light:bg-[#EAEAE6] text-[#888] dark:text-[#888] light:text-[#555] hover:text-[#F2F0E8] dark:hover:text-[#F2F0E8] light:hover:text-[#111] hover:border-[#444] border border-[#2B2B2B] dark:border-[#2B2B2B] light:border-[#DDD] transition-all cursor-pointer truncate max-w-full active:scale-95"
+                >
+                  "{chip}"
+                </button>
+              ))}
+            </motion.div>
+          )}
         </div>
 
         {/* Error / Validation Banner */}
@@ -606,6 +704,7 @@ export const App: React.FC = () => {
               {/* TO LINKEDIN PARODY CARD */}
               {isLinkedInMode ? (
                 <div
+                  ref={cardRef}
                   onClick={handleCardTap}
                   className="relative w-full bg-white dark:bg-[#1A1A1A] border border-[#E5E5E0] dark:border-[#2E2E2E] rounded-xl p-4 shadow-soft-card flex flex-col gap-3 select-none cursor-pointer"
                 >
@@ -811,18 +910,27 @@ export const App: React.FC = () => {
                   </div>
 
                   {/* Faint Fake Comment Strip at Bottom */}
-                  <div className="pt-2 border-t border-[#EAEAEA] dark:border-[#262626] flex items-center gap-2 text-[11px] font-sans text-[#888] dark:text-[#777] opacity-75">
-                    <div className="w-5 h-5 rounded-full bg-[#DDD] dark:bg-[#333] flex items-center justify-center text-[9px] font-bold text-[#555] dark:text-[#AAA] shrink-0">
-                      AP
+                  <div className="pt-2 border-t border-[#EAEAEA] dark:border-[#262626] flex items-center justify-between text-[11px] font-sans text-[#888] dark:text-[#777]">
+                    <div className="flex items-center gap-2 opacity-75 truncate">
+                      <div className="w-5 h-5 rounded-full bg-[#DDD] dark:bg-[#333] flex items-center justify-center text-[9px] font-bold text-[#555] dark:text-[#AAA] shrink-0">
+                        AP
+                      </div>
+                      <span className="truncate">
+                        "Great insights! Thanks for sharing."
+                      </span>
                     </div>
-                    <span className="truncate">
-                      "Great insights! Thanks for sharing."
+                    {/* Watermark in bottom corner */}
+                    <span className="text-[10px] font-mono text-[#888] dark:text-[#666] opacity-50 shrink-0 ml-2 select-none">
+                      @cringein.official
                     </span>
                   </div>
                 </div>
               ) : (
                 /* TO REAL MODE: PRIVATE CHAT PARODY CARD */
-                <div className="relative w-full bg-[#181818] dark:bg-[#181818] light:bg-[#F2F2EE] border border-[#2E2E2E] dark:border-[#2E2E2E] light:border-[#D5D5CE] rounded-xl overflow-hidden shadow-soft-card flex flex-col select-none">
+                <div
+                  ref={cardRef}
+                  className="relative w-full bg-[#181818] dark:bg-[#181818] light:bg-[#F2F2EE] border border-[#2E2E2E] dark:border-[#2E2E2E] light:border-[#D5D5CE] rounded-xl overflow-hidden shadow-soft-card flex flex-col select-none"
+                >
                   {/* Faint Doodle Pattern Background (4% opacity) */}
                   <div
                     className="pointer-events-none absolute inset-0 z-0 opacity-[0.04]"
@@ -919,12 +1027,39 @@ export const App: React.FC = () => {
                         </div>
                       </motion.div>
                     )}
+                    {/* Watermark in bottom corner */}
+                    <div className="flex justify-end pt-1">
+                      <span className="text-[10px] font-mono text-[#888] dark:text-[#666] opacity-50 select-none">
+                        @cringein.official
+                      </span>
+                    </div>
                   </div>
                 </div>
               )}
 
-              {/* Copy button sits below the card and copies only the text */}
-              <div className="w-full flex justify-end pt-1">
+              {/* Action buttons below the card: Save image & Copy */}
+              <div className="w-full flex justify-end items-center gap-2 pt-1 select-none">
+                <button
+                  type="button"
+                  onClick={handleSaveImage}
+                  disabled={isSavingImage}
+                  className="text-xs font-display font-bold px-3 py-2 rounded-lg bg-[#242424] dark:bg-[#242424] light:bg-[#EAEAEA] text-[#F2F0E8] dark:text-[#F2F0E8] light:text-[#111] hover:bg-[#333] transition-colors border border-[#3E3E3E] active:scale-[0.97] flex items-center gap-1.5"
+                >
+                  <svg
+                    className="w-3.5 h-3.5 stroke-current fill-none shrink-0"
+                    viewBox="0 0 24 24"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="7 10 12 15 17 10" />
+                    <line x1="12" y1="15" x2="12" y2="3" />
+                  </svg>
+                  <span>{isSavingImage ? 'Saving...' : 'Save image'}</span>
+                </button>
+
                 <button
                   type="button"
                   onClick={handleCopy}

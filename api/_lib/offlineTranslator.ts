@@ -1,47 +1,47 @@
-// Offline fallback template engine strictly adhering to Fact Rules
+// Offline fallback template engine strictly adhering to Fact Rules with archetype variety
 
-const LINKEDIN_OPENERS = [
-  "Thrilled to announce a major milestone in my journey.",
-  "Humbled and truly honored to share this update with my network.",
-  "Never in my wildest dreams did I imagine I'd be writing this today.",
-  "After countless hours and sheer focus, it's finally here.",
-];
+const ARCHETYPE_TEMPLATES: Record<string, (fact: string) => string> = {
+  announcement: (fact) =>
+    `Thrilled to announce a major milestone in my journey.\n\nToday, I am proud to formally share:\n\n${fact}.\n\nIt required patience and unwavering dedication to see this through.\n\nWhat has your experience been with this?\n\nAgree?\n\n#Milestone #CareerJourney #Leadership`,
 
-const LINKEDIN_LESSONS = [
-  "What this taught me: Progress isn't linear. It's a continuous journey of consistency and resilience.",
-  "The biggest takeaway? Focus on the process, align with your vision, and the results follow.",
-  "Key reflection: When you remain committed to continuous improvement, growth happens naturally.",
-  "A quiet reminder: Never underestimate the compound effect of disciplined daily effort.",
-];
+  lesson: (fact) =>
+    `I was reflecting on a seemingly simple moment today:\n\n${fact}.\n\nHere is the leadership lesson most people miss:\n\n1. Progress is never an accident.\n2. Small daily actions compound into monumental outcomes.\n3. The obstacle is simply data pointing to your north star.\n\nDo you agree with this reflection?\n\n#Leadership #Mindset #ContinuousImprovement`,
 
-const LINKEDIN_CLOSERS = [
-  "Curious to hear how you approach this.\n\nAgree?",
-  "What has your experience been with this mindset?\n\nAgree?",
-  "Do you agree with this reflection?\n\nAgree?",
-  "Reflecting on this as we move forward.\n\nAgree?",
-];
+  story: (fact) =>
+    `3 years ago, I had zero clarity and endless doubt.\n\nPeople told me to play it safe.\n\nThey told me not to push forward.\n\nToday:\n\n${fact}.\n\nNever let someone else's comfort zone become your ceiling.\n\nRepost if you agree.\n\n#Resilience #Growth #NeverGiveUp`,
 
-const LINKEDIN_TAGS = [
-  "#Leadership #GrowthMindset #ContinuousLearning #Success #Innovation",
-  "#CareerJourney #Entrepreneurship #Milestone #Resilience #Agree",
-  "#Motivation #ProfessionalGrowth #StartupLife #Gratitude #Vision",
-];
+  hot_take: (fact) =>
+    `Unpopular opinion:\n\n${fact}.\n\nMost corporate professionals will disagree with this.\n\nThey prefer the comfort of conventional playbooks.\n\nBut the top 1% understand that true breakthroughs happen when you challenge the default.\n\nAgree?`,
 
-export function generateOfflineLinkedInPost(fact: string): string {
-  const clean = fact.trim();
-  const rand = <T>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
+  dad_story: (fact) =>
+    `Yesterday, an auto rickshaw driver smiled at me while I was reflecting on how:\n\n${fact}.\n\nHe said: "Sahab, kaam shuru karne mein hi jeet hai."\n\nIt hit me right in the chest.\n\nLeadership isn't taught in executive boardrooms.\n\nIt is taught in daily conversations.\n\nFollow me for more insights.`,
 
-  const opener = rand(LINKEDIN_OPENERS);
-  const lesson = rand(LINKEDIN_LESSONS);
-  const closer = rand(LINKEDIN_CLOSERS);
-  const tags = rand(LINKEDIN_TAGS);
+  list: (fact) =>
+    `5 brutal truths I realized from:\n\n${fact}:\n\n1. Execution eats strategy for breakfast.\n2. Consistency is the only real unfair advantage.\n3. Protect your focus at all costs.\n4. Feedback is a gift, even when uncomfortable.\n5. Don't wait for permission to start.\n\nWhich one resonates most with you?`,
 
-  // Keep every user fact, number, and word intact without adding new facts
-  const formattedFact = clean
-    ? `Today, I am reflecting on:\n\n${clean}.\n\nIt required patience and unwavering dedication to see this through.`
-    : `Today marks an important step forward in focused execution and progress.`;
+  broetry: (fact) =>
+    `I did something.\n\n${fact}.\n\nNo shortcuts.\n\nNo excuses.\n\nJust showing up.\n\nEvery.\n\nSingle.\n\nDay.\n\nGrowth.`,
 
-  return `${opener}\n\n${formattedFact}\n\n${lesson}\n\n${closer}\n\n${tags}`;
+  before_after: (fact) =>
+    `Day 1: Doubted every single step.\n\nDay 100:\n\n${fact}.\n\nThe only difference? Showing up even when no one was watching.\n\nKeep building.\n\n#Transformation #Discipline #Consistency`,
+
+  confession: (fact) =>
+    `I was honestly terrified to share this with my network...\n\n${fact}.\n\nWe often hide the daily process behind polished trophies.\n\nToday, I'm choosing to share the raw reality.\n\nVulnerability is not weakness. It is leadership.\n\n#Authenticity #Vulnerability #Leadership`,
+
+  thank_you: (fact) =>
+    `A moment of profound gratitude.\n\n${fact}.\n\nNone of this would be possible without my incredible mentors, my team, and the universe aligning this path.\n\nThank you to everyone who believed in this vision.\n\n#Gratitude #Teamwork #Blessed`,
+};
+
+export function generateOfflineLinkedInPost(fact: string, archetypeId?: string): string {
+  const clean = fact.trim() || 'taking a moment to focus on focused execution and progress';
+  
+  if (archetypeId && ARCHETYPE_TEMPLATES[archetypeId]) {
+    return ARCHETYPE_TEMPLATES[archetypeId](clean);
+  }
+
+  const keys = Object.keys(ARCHETYPE_TEMPLATES);
+  const randomKey = keys[Math.floor(Math.random() * keys.length)];
+  return ARCHETYPE_TEMPLATES[randomKey](clean);
 }
 
 const REAL_PATTERNS: { match: RegExp; responses: string[] }[] = [

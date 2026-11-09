@@ -3,6 +3,40 @@ import { generateOfflineLinkedInPost, generateOfflineRealMeaning } from './_lib/
 export interface TranslateRequestBody {
   text: string;
   mode: 'to-linkedin' | 'to-real';
+  lastType?: string;
+}
+
+export interface Archetype {
+  id: string;
+  name: string;
+  instruction: string;
+}
+
+export const LINKEDIN_ARCHETYPES: Archetype[] = [
+  { id: 'announcement', name: 'Announcement', instruction: '"Thrilled to announce..." humblebrag, one line per paragraph' },
+  { id: 'lesson', name: 'Leadership Lesson', instruction: 'a trivial event turned into a leadership lesson' },
+  { id: 'story', name: 'Dramatic Story', instruction: 'dramatic backstory ("Three years ago I had nothing...") ending with the small fact' },
+  { id: 'hot_take', name: 'Hot Take', instruction: '"Unpopular opinion:" followed by a bold statement built from the fact' },
+  { id: 'dad_story', name: 'Dad/Driver Story', instruction: 'an invented conversation with a child or a rickshaw driver who "taught me leadership"' },
+  { id: 'list', name: 'Numbered List', instruction: '"5 things I learned from <the fact>" with absurdly deep numbered points' },
+  { id: 'thank_you', name: 'Gratitude Post', instruction: 'gratitude post thanking imaginary mentors, team and "the universe"' },
+  { id: 'broetry', name: 'Broetry', instruction: 'very short lines, one idea per line, ends with a one-word line' },
+  { id: 'before_after', name: 'Before/After', instruction: '"Day 1 vs Day 100" comparison' },
+  { id: 'confession', name: 'Confession', instruction: '"I was afraid to share this..." vulnerable opener' },
+];
+
+const LENGTHS = ['about 40 words', 'about 90 words', 'about 150 words'];
+const OPENER_STYLES = ['a number', 'a question', 'a bold claim', 'a time marker', 'a quote-like line'];
+const CLOSERS = ['a question', '"Repost if you agree"', '"Follow me for more"', 'none'];
+const HASHTAGS_OPTIONS = ['0 hashtags', '1 to 2 hashtags', '3 to 5 hashtags', 'none'];
+const EMOJI_OPTIONS = ['none', 'one or two', 'rarely many'];
+
+export function pickArchetype(lastType?: string): Archetype {
+  const eligible = lastType
+    ? LINKEDIN_ARCHETYPES.filter((a) => a.id !== lastType)
+    : LINKEDIN_ARCHETYPES;
+  const pool = eligible.length > 0 ? eligible : LINKEDIN_ARCHETYPES;
+  return pool[Math.floor(Math.random() * pool.length)];
 }
 
 // Model lists for LLM providers
@@ -217,7 +251,7 @@ export async function handleTranslation(
   hostHeader?: string
 ): Promise<{
   status: number;
-  data: { result?: string; source?: 'gemini' | 'groq' | 'offline'; error?: string };
+  data: { result?: string; source?: 'gemini' | 'groq' | 'offline'; type?: string; error?: string };
 }> {
   // 1. Origin verification
   if (!isAllowedOrigin(originHeader, hostHeader)) {
@@ -230,6 +264,13 @@ export async function handleTranslation(
   // 2. Input validation
   const text = typeof body?.text === 'string' ? body.text.trim() : '';
   const mode = body?.mode === 'to-real' ? 'to-real' : 'to-linkedin';
+  const lastType = typeof body?.lastType === 'string' ? body.lastType.trim() : undefined;
+  const chosenArchetype = pickArchetype(lastType);
+  const chosenLength = LENGTHS[Math.floor(Math.random() * LENGTHS.length)];
+  const chosenOpener = OPENER_STYLES[Math.floor(Math.random() * OPENER_STYLES.length)];
+  const chosenCloser = CLOSERS[Math.floor(Math.random() * CLOSERS.length)];
+  const chosenHashtags = HASHTAGS_OPTIONS[Math.floor(Math.random() * HASHTAGS_OPTIONS.length)];
+  const chosenEmoji = EMOJI_OPTIONS[Math.floor(Math.random() * EMOJI_OPTIONS.length)];
 
   if (!text) {
     return {
@@ -240,6 +281,7 @@ export async function handleTranslation(
             ? 'Thrilled to announce that I am quietly ideating in absolute focus.\n\nAgree?'
             : 'Khali tha, kuch samajh nahi aaya.',
         source: 'offline',
+        type: mode === 'to-linkedin' ? chosenArchetype.id : undefined,
       },
     };
   }
@@ -267,7 +309,7 @@ export async function handleTranslation(
     // If daily LLM budget is exhausted, gracefully use the offline template engine
     const offlineResult =
       mode === 'to-linkedin'
-        ? generateOfflineLinkedInPost(text)
+        ? generateOfflineLinkedInPost(text, chosenArchetype.id)
         : generateOfflineRealMeaning(text);
 
     return {
@@ -275,20 +317,28 @@ export async function handleTranslation(
       data: {
         result: offlineResult,
         source: 'offline',
+        type: mode === 'to-linkedin' ? chosenArchetype.id : undefined,
       },
     };
   }
 
   const systemPrompt =
     mode === 'to-linkedin'
-      ? `Rewrite the user's sentence as a LinkedIn post. Keep the user's actual fact. Use typical LinkedIn habits: "Thrilled to announce", "humbled", "journey", one-line paragraphs, a fake lesson, "Agree?" at the end, 3 to 5 hashtags. Exaggerated but readable.
+      ? `Rewrite the user's sentence as a satirical, over-the-top corporate LinkedIn parody post.
 
-FACT RULES:
-- Use ONLY the facts in the user's text. Do not add names, numbers, dates, companies, job titles, achievements or results that the user did not write.
-- Keep every number, name, date and place exactly as written.
-- If the user's sentence is vague, keep the post vague. Add style, never facts.
-- To LinkedIn: add only tone, filler phrases, a generic lesson, and hashtags. The lesson must not contain new facts.
-- Output only the final text.`
+ARCHETYPE TO USE:
+Archetype ID: ${chosenArchetype.id}
+Archetype Definition: ${chosenArchetype.instruction}
+
+VARIATION PARAMETERS:
+- Target length: ${chosenLength}
+- Opener style: start with ${chosenOpener}
+- Closer: end with ${chosenCloser}
+- Hashtags: ${chosenHashtags}
+- Emoji: ${chosenEmoji}
+
+SYSTEM PROMPT RULES:
+Write the post in the given archetype, length, opener and closer. Do NOT start with 'Thrilled to announce' unless the archetype is 'announcement'. Keep the user's facts exactly (no new names, numbers, companies or results); add only tone and invented generic lessons. Output only the post.`
       : `You are a close Indian friend reading a LinkedIn post over someone's shoulder and roasting the person who wrote it. Reply in casual Hinglish, like a WhatsApp message to a friend.
 
 STYLE:
@@ -316,6 +366,7 @@ Reply: "Team ko credit sirf isliye ki comments aa jaye. 'Agree?' likh ke bheek m
 
   const geminiKey = process.env.GEMINI_API_KEY?.trim();
   const groqKey = process.env.GROQ_API_KEY?.trim();
+  const temperature = mode === 'to-linkedin' ? 1.0 : 0.8;
 
   // Development-only debug logging (Never log key values, user text, or headers)
   if (process.env.NODE_ENV !== 'production') {
@@ -338,7 +389,7 @@ Reply: "Team ko credit sirf isliye ki comments aa jaye. 'Agree?' likh ke bheek m
             systemInstruction: { parts: [{ text: systemPrompt }] },
             contents: [{ parts: [{ text }] }],
             generationConfig: {
-              temperature: 0.8,
+              temperature,
               maxOutputTokens: 300,
             },
           }),
@@ -356,6 +407,7 @@ Reply: "Team ko credit sirf isliye ki comments aa jaye. 'Agree?' likh ke bheek m
               data: {
                 result: candidateText.trim(),
                 source: 'gemini',
+                type: mode === 'to-linkedin' ? chosenArchetype.id : undefined,
               },
             };
           }
@@ -394,7 +446,7 @@ Reply: "Team ko credit sirf isliye ki comments aa jaye. 'Agree?' likh ke bheek m
             { role: 'system', content: systemPrompt },
             { role: 'user', content: text },
           ],
-          temperature: 0.8,
+          temperature,
           max_tokens: 300,
         }),
       });
@@ -411,6 +463,7 @@ Reply: "Team ko credit sirf isliye ki comments aa jaye. 'Agree?' likh ke bheek m
             data: {
               result: reply.trim(),
               source: 'groq',
+              type: mode === 'to-linkedin' ? chosenArchetype.id : undefined,
             },
           };
         }
@@ -431,7 +484,7 @@ Reply: "Team ko credit sirf isliye ki comments aa jaye. 'Agree?' likh ke bheek m
   // 7. Last Resort: Offline Template Engine
   const offlineResult =
     mode === 'to-linkedin'
-      ? generateOfflineLinkedInPost(text)
+      ? generateOfflineLinkedInPost(text, chosenArchetype.id)
       : generateOfflineRealMeaning(text);
 
   return {
@@ -439,6 +492,7 @@ Reply: "Team ko credit sirf isliye ki comments aa jaye. 'Agree?' likh ke bheek m
     data: {
       result: offlineResult,
       source: 'offline',
+      type: mode === 'to-linkedin' ? chosenArchetype.id : undefined,
     },
   };
 }
