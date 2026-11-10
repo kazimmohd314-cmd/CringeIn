@@ -642,8 +642,8 @@ export const App: React.FC = () => {
           background: isOpenToWorkActive
             ? 'radial-gradient(ellipse 100% 70% at 50% 30%, rgba(5, 118, 66, 0.45) 0%, rgba(112, 181, 161, 0.18) 50%, transparent 80%)'
             : isLinkedInMode
-            ? 'radial-gradient(ellipse 80% 50% at 50% 32%, rgba(31, 95, 191, 0.16) 0%, transparent 70%)'
-            : 'radial-gradient(ellipse 80% 50% at 50% 32%, rgba(200, 255, 61, 0.13) 0%, transparent 70%)',
+              ? 'radial-gradient(ellipse 80% 50% at 50% 32%, rgba(31, 95, 191, 0.16) 0%, transparent 70%)'
+              : 'radial-gradient(ellipse 80% 50% at 50% 32%, rgba(200, 255, 61, 0.13) 0%, transparent 70%)',
         }}
         aria-hidden="true"
       />
@@ -719,8 +719,8 @@ export const App: React.FC = () => {
                 isOpenToWorkActive && !prefersReducedMotion
                   ? { rotate: [0, -6, 6, -5, 5, -2, 2, 0], scaleY: 1, scaleX: 1 }
                   : isWordmarkSquished
-                  ? { scaleY: 0.92, scaleX: 1.05, rotate: 0 }
-                  : { scaleY: 1, scaleX: 1, rotate: 0 }
+                    ? { scaleY: 0.92, scaleX: 1.05, rotate: 0 }
+                    : { scaleY: 1, scaleX: 1, rotate: 0 }
               }
               transition={{ type: 'spring', stiffness: 500, damping: 15 }}
               className="inline-block cursor-pointer select-none origin-bottom relative"
@@ -800,21 +800,20 @@ export const App: React.FC = () => {
                 prefersReducedMotion
                   ? {}
                   : tapCount > 0
-                  ? { scale: [1, 1.25, 1], y: [-2, 2, -2] }
-                  : { y: [-2, 2, -2] }
+                    ? { scale: [1, 1.25, 1], y: [-2, 2, -2] }
+                    : { y: [-2, 2, -2] }
               }
               transition={{
                 duration: tapCount > 0 ? 0.22 : 3,
                 repeat: tapCount > 0 ? 0 : Infinity,
                 ease: 'easeInOut',
               }}
-              className={`rounded-full px-2.5 py-0.5 inline-flex items-center gap-1.5 border border-dashed transition-colors duration-200 select-none ${
-                isOpenToWorkActive
+              className={`rounded-full px-2.5 py-0.5 inline-flex items-center gap-1.5 border border-dashed transition-colors duration-200 select-none ${isOpenToWorkActive
                   ? 'border-[#70B5A1] bg-[#057642] text-white shadow-sm'
                   : tapCount > 0
-                  ? 'border-[#C8FF3D] text-[#C8FF3D] bg-[#1E1E1E]'
-                  : 'border-[#444] dark:border-[#444] light:border-[#AAA] text-[#888] dark:text-[#888] light:text-[#777] bg-[#141414]/60 dark:bg-[#141414]/60 light:bg-[#EFEFEA]/60'
-              }`}
+                    ? 'border-[#C8FF3D] text-[#C8FF3D] bg-[#1E1E1E]'
+                    : 'border-[#444] dark:border-[#444] light:border-[#AAA] text-[#888] dark:text-[#888] light:text-[#777] bg-[#141414]/60 dark:bg-[#141414]/60 light:bg-[#EFEFEA]/60'
+                }`}
               style={{ transform: 'rotate(-2deg)' }}
             >
               <svg
@@ -885,9 +884,8 @@ export const App: React.FC = () => {
                 setErrorMsg('');
               }
             }}
-            className={`relative z-10 h-11 rounded-lg text-sm font-display font-extrabold transition-colors flex items-center justify-center border-2 border-transparent ${
-              isLinkedInMode ? 'text-white' : 'text-[#888] hover:text-white'
-            }`}
+            className={`relative z-10 h-11 rounded-lg text-sm font-display font-extrabold transition-colors flex items-center justify-center border-2 border-transparent ${isLinkedInMode ? 'text-white' : 'text-[#888] hover:text-white'
+              }`}
           >
             To LinkedIn
             {isLinkedInMode && (
@@ -908,9 +906,8 @@ export const App: React.FC = () => {
                 setErrorMsg('');
               }
             }}
-            className={`relative z-10 h-11 rounded-lg text-sm font-display font-extrabold transition-colors flex items-center justify-center border-2 border-transparent ${
-              !isLinkedInMode ? 'text-black' : 'text-[#888] hover:text-white'
-            }`}
+            className={`relative z-10 h-11 rounded-lg text-sm font-display font-extrabold transition-colors flex items-center justify-center border-2 border-transparent ${!isLinkedInMode ? 'text-black' : 'text-[#888] hover:text-white'
+              }`}
           >
             To Real
             {!isLinkedInMode && (
@@ -949,17 +946,16 @@ export const App: React.FC = () => {
                   ? 'Aaj maine ek app banayi...'
                   : 'Paste a LinkedIn post here...'
                 : placeholderText ||
-                  (isLinkedInMode
-                    ? 'Aaj maine ek app banayi...'
-                    : 'Paste a LinkedIn post here...')
+                (isLinkedInMode
+                  ? 'Aaj maine ek app banayi...'
+                  : 'Paste a LinkedIn post here...')
             }
-            className={`w-full bg-[#161616] dark:bg-[#161616] light:bg-white border-2 rounded-xl p-3.5 text-base text-[#F2F0E8] dark:text-[#F2F0E8] light:text-[#111] placeholder:text-[#666] focus:outline-none resize-none leading-relaxed transition-colors shadow-soft-card ${
-              isInputFocused
+            className={`w-full bg-[#161616] dark:bg-[#161616] light:bg-white border-2 rounded-xl p-3.5 text-base text-[#F2F0E8] dark:text-[#F2F0E8] light:text-[#111] placeholder:text-[#666] focus:outline-none resize-none leading-relaxed transition-colors shadow-soft-card ${isInputFocused
                 ? isLinkedInMode
                   ? 'border-[#1F5FBF]'
                   : 'border-[#C8FF3D]'
                 : 'border-[#2C2C2C] dark:border-[#2C2C2C] light:border-[#D8D8D2]'
-            }`}
+              }`}
           />
 
           {/* Example Chips (stagger in from below, press-scale to 0.95 on tap) */}
@@ -1014,21 +1010,19 @@ export const App: React.FC = () => {
             retryCountdown > 0
               ? {}
               : {
-                  x: 4,
-                  y: 4,
-                  scale: 0.97,
-                  boxShadow: '0px 0px 0px transparent',
-                }
+                x: 4,
+                y: 4,
+                scale: 0.97,
+                boxShadow: '0px 0px 0px transparent',
+              }
           }
-          className={`w-full h-14 rounded-xl text-base font-display font-extrabold uppercase tracking-wide border-2 border-black dark:border-black flex items-center justify-center shadow-hard-dark dark:shadow-hard-dark light:shadow-hard-light btn-pressable ${
-            !hasTranslated && !isLoading && retryCountdown === 0 ? 'animate-shadow-pulse' : ''
-          } ${
-            retryCountdown > 0
+          className={`w-full h-14 rounded-xl text-base font-display font-extrabold uppercase tracking-wide border-2 border-black dark:border-black flex items-center justify-center shadow-hard-dark dark:shadow-hard-dark light:shadow-hard-light btn-pressable ${!hasTranslated && !isLoading && retryCountdown === 0 ? 'animate-shadow-pulse' : ''
+            } ${retryCountdown > 0
               ? 'bg-[#222] dark:bg-[#222] light:bg-[#DDD] text-[#888] cursor-not-allowed opacity-90'
               : isLinkedInMode
-              ? 'bg-[#1F5FBF] text-white hover:brightness-105'
-              : 'bg-[#C8FF3D] text-black hover:bg-acidlime-hover'
-          } ${isLoading ? 'opacity-90' : ''}`}
+                ? 'bg-[#1F5FBF] text-white hover:brightness-105'
+                : 'bg-[#C8FF3D] text-black hover:bg-acidlime-hover'
+            } ${isLoading ? 'opacity-90' : ''}`}
         >
           {retryCountdown > 0 ? (
             <span className="flex items-center gap-2 font-mono text-xs font-bold tracking-wider text-[#C8FF3D] dark:text-[#C8FF3D] light:text-[#057642]">
@@ -1126,7 +1120,7 @@ export const App: React.FC = () => {
                       <div className="flex flex-col leading-tight min-w-0 flex-1">
                         <div className="flex items-center flex-wrap gap-1.5">
                           <span className="font-sans font-bold text-sm text-[#141414] dark:text-[#F2F0E8]">
-                            Rahul Sharma
+                            USER
                           </span>
 
                           <span className="inline-flex items-center text-[10px] font-sans font-semibold text-[#1F5FBF] bg-[#1F5FBF]/10 dark:bg-[#1F5FBF]/20 border border-[#1F5FBF]/30 px-2 py-0.5 rounded-full leading-none">
@@ -1168,9 +1162,8 @@ export const App: React.FC = () => {
                       <motion.div
                         layout
                         transition={{ duration: 0.25, ease: 'easeInOut' }}
-                        className={`text-sm sm:text-base font-sans text-[#141414] dark:text-[#F2F0E8] whitespace-pre-wrap leading-relaxed select-text cursor-text ${
-                          !isPostExpanded && isLongPost ? 'line-clamp-3' : ''
-                        }`}
+                        className={`text-sm sm:text-base font-sans text-[#141414] dark:text-[#F2F0E8] whitespace-pre-wrap leading-relaxed select-text cursor-text ${!isPostExpanded && isLongPost ? 'line-clamp-3' : ''
+                          }`}
                         onClick={(e) => {
                           e.stopPropagation();
                           if (output && displayedOutput !== output) {
@@ -1310,18 +1303,16 @@ export const App: React.FC = () => {
                         <button
                           type="button"
                           onClick={handleLikeToggle}
-                          className={`w-full flex items-center justify-center gap-1.5 py-1 transition-colors ${
-                            isLiked
+                          className={`w-full flex items-center justify-center gap-1.5 py-1 transition-colors ${isLiked
                               ? 'text-[#1F5FBF] font-bold'
                               : 'hover:text-[#1F5FBF]'
-                          }`}
+                            }`}
                         >
                           <motion.svg
                             animate={isLiked ? { scale: [1, 1.4, 0.9, 1] } : { scale: 1 }}
                             transition={{ duration: 0.3 }}
-                            className={`w-4 h-4 stroke-current ${
-                              isLiked ? 'fill-[#1F5FBF]' : 'fill-none'
-                            }`}
+                            className={`w-4 h-4 stroke-current ${isLiked ? 'fill-[#1F5FBF]' : 'fill-none'
+                              }`}
                             viewBox="0 0 24 24"
                             strokeWidth="2"
                             strokeLinecap="round"
@@ -1494,9 +1485,8 @@ export const App: React.FC = () => {
                             <span>{replyTimestamp || 'Just now'}</span>
 
                             <span
-                              className={`inline-flex items-center text-xs font-bold leading-none transition-colors duration-500 ${
-                                areTicksLime ? 'text-[#057642]' : 'text-neutral-500'
-                              }`}
+                              className={`inline-flex items-center text-xs font-bold leading-none transition-colors duration-500 ${areTicksLime ? 'text-[#057642]' : 'text-neutral-500'
+                                }`}
                               title={areTicksLime ? 'Read' : 'Delivered'}
                             >
                               ✓✓
